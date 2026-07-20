@@ -7,6 +7,9 @@ var duration = 0.1
 @onready var player = get_tree().get_nodes_in_group("player")[0]  
 @onready var player_hover_handler = player.find_child("Hover Handler")
 
+signal clicky_thing_attached
+signal clicky_thing_detached
+
 func _on_body_entered(body: Node3D) -> void:
 	if (attached_rb != null):
 		return
@@ -20,15 +23,13 @@ func _on_body_entered(body: Node3D) -> void:
 		
 		if (player_hover_handler.rigidbody_hover_target == attached_rb):
 			player_hover_handler.rigidbody_hover_target = null
-			
-		if (get_parent() is MachineNode):
-			(get_parent() as MachineNode).attach_clicky_thing()
+		
+		clicky_thing_attached.emit()
 
 
 func _on_body_exited(body: Node3D) -> void:
 	if (body is RigidBody3D):
 		if ((body as RigidBody3D) == attached_rb):
 			attached_rb = null
-			if (get_parent() is MachineNode):
-				(get_parent() as MachineNode).dettach_clicky_thing()
+			clicky_thing_detached.emit()
 	pass # Replace with function body.

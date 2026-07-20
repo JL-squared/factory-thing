@@ -59,6 +59,9 @@ impl INode3D for MachineNode {
                 }
             }
         }
+
+        self.base().find_child("Clicky Clicky Thing").unwrap().connect("clicky_thing_attached", &self.base().callable("attach_clicky_thing"));
+        self.base().find_child("Clicky Clicky Thing").unwrap().connect("clicky_thing_detached", &self.base().callable("detach_clicky_thing"));
     }
 
     fn process(&mut self, _delta: f32) {
@@ -171,7 +174,7 @@ impl MachineNode {
 
         
     #[func]
-    fn dettach_clicky_thing(&mut self) {
+    fn detach_clicky_thing(&mut self) {
         let tree = self.base().get_tree();
         let window = tree.get_root().unwrap();
         let root = window.get_child(0).unwrap();

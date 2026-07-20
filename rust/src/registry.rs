@@ -144,3 +144,12 @@ pub struct Recipe {
     pub ticks: u16,
     pub load: LoadUnit,
 }
+
+#[derive(Debug)]
+pub struct MinerRecipe {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub output: Item,
+    pub ticks: u16,
+    pub load: LoadUnit,
+}

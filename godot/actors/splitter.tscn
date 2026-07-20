@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://6cf0y3f3e1lq"]
+
+[ext_resource type="PackedScene" uid="uid://cdqcnjqngif53" path="res://actors/hatch.tscn" id="1_r53lr"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6a4ke"]
+size = Vector3(2, 2, 2)
+
+[node name="Splitter" type="SplitterNode" unique_id=744110374 groups=["actors"]]
+
+[node name="CSGCombiner3D" type="CSGCombiner3D" parent="." unique_id=919800609]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="CSGCombiner3D" unique_id=2129901033]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.011)
+size = Vector3(2, 2, 2)
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=1079998213]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=1945520073]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)
+shape = SubResource("BoxShape3D_6a4ke")
+
+[node name="Input Hatch" parent="." unique_id=276232919 instance=ExtResource("1_r53lr")]
+input_hatch = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.1571972)
+
+[node name="Output Hatch 1" parent="." unique_id=1583920681 instance=ExtResource("1_r53lr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 1.17957)
+type = 1
+
+[node name="Output Hatch 2" parent="." unique_id=524876700 instance=ExtResource("1_r53lr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1.17957)
+type = 1

@@ -6,6 +6,7 @@ mod miner;
 mod pole;
 mod silo;
 mod wire;
+mod splitter;
 
 use godot::classes::*;
 use godot::prelude::*;

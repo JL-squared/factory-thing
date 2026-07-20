@@ -1,13 +1,17 @@
-[gd_scene format=3 uid="uid://ca4t5kgj1g08b"]
+[gd_scene format=3 uid="uid://rkwmwp2wd52b"]
 
 [ext_resource type="PackedScene" uid="uid://pcr0r0mqngyh" path="res://actors/pole.tscn" id="1_qsadh"]
 [ext_resource type="PackedScene" uid="uid://cdqcnjqngif53" path="res://actors/hatch.tscn" id="2_u7vtn"]
+[ext_resource type="Material" uid="uid://dba8ytmipfsl2" path="res://vfx/smoke_particle_material.tres" id="3_luoay"]
+[ext_resource type="Material" uid="uid://ba6hdaqeva4dr" path="res://vfx/smoke_particle_process_material.tres" id="4_1s1dy"]
+[ext_resource type="PackedScene" uid="uid://bmw183igi0msw" path="res://prefabs/clicky_clicky_thing.tscn" id="5_oe1cp"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_6a4ke"]
 size = Vector3(1, 1.0019531, 2.0927734)
 
-[node name="Miner" type="MinerNode" unique_id=807570545 groups=["actors"]]
-recipe_name_id = "mine_iron"
+[sub_resource type="BoxMesh" id="BoxMesh_q015e"]
+
+[node name="Miner" type="MinerNode" unique_id=521738910 groups=["actors"]]
 
 [node name="CSGCombiner3D" type="CSGCombiner3D" parent="." unique_id=919800609]
 
@@ -21,14 +25,21 @@ size = Vector3(1, 1, 1.9726563)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0009765625, 0.0024414063)
 shape = SubResource("BoxShape3D_6a4ke")
 
-[node name="Label3D" type="Label3D" parent="." unique_id=1784675617]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8173234, 0)
-billboard = 1
-text = "Miner"
-
 [node name="Power Pole" parent="." unique_id=502923269 instance=ExtResource("1_qsadh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.69810146, -0.80794793)
 
 [node name="Output Hatch" parent="." unique_id=1583920681 instance=ExtResource("2_u7vtn")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.17957)
 type = 1
+
+[node name="Smoke Vfx" type="GPUParticles3D" parent="." unique_id=1143982262]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.038622, 0)
+material_override = ExtResource("3_luoay")
+emitting = false
+amount = 32
+fixed_fps = 60
+process_material = ExtResource("4_1s1dy")
+draw_pass_1 = SubResource("BoxMesh_q015e")
+
+[node name="Clicky Clicky Thing" parent="." unique_id=1774589842 instance=ExtResource("5_oe1cp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1830778, 0, 0)

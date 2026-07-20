@@ -3,12 +3,13 @@ use std::{
     num::NonZeroU16,
 };
 
+use fastrand::Rng;
 use slotmap::{SlotMap, new_key_type};
 
 
 
 
-use crate::{items::*, registry::{self, Recipe}};
+use crate::{items::*, registry::{self, MinerRecipe, Recipe}};
 use crate::handle::*;
 
 pub type LoadUnit = isize;
@@ -76,6 +77,26 @@ pub struct Machine {
     pub internal_power_buffer: LoadUnit,
 }
 
+// TODO: generalize machine and miner using traits
+#[derive(Default, Debug)]
+pub struct Miner {
+    pub output: HatchKey,
+    pub recipe: Option<&'static MinerRecipe>,
+    pub progress: Option<Progress>,
+    pub status: MachineStatus,
+    pub pole: Option<PoleKey>,
+    pub clicky_thing_attached: bool,
+    pub internal_power_buffer: LoadUnit,
+}
+
+#[derive(Default, Debug)]
+pub struct Splitter {
+    pub input: HatchKey,
+    pub output: Vec<HatchKey>,
+    pub toggle: bool,
+}
+
+
 #[derive(Debug)]
 pub enum Pole {
     // generator pole
@@ -138,6 +159,8 @@ impl Default for Settings {
 pub struct Simulation<R: registry::Registry> {
     pub hatches: SlotMap<HatchKey, Hatch>,
     pub machines: SlotMap<MachineKey, Machine>,
+    pub miners: SlotMap<MinerKey, Miner>,
+    pub splitters: SlotMap<SplitterKey, Splitter>,
     pub belts: SlotMap<BeltKey, Belt>,
     pub poles: SlotMap<PoleKey, Pole>,
     pub wires: SlotMap<WireKey, Wire>,
@@ -149,10 +172,28 @@ pub struct Simulation<R: registry::Registry> {
     pub sources: Vec<(HatchKey, Item)>,
     pub sinks: Vec<HatchKey>,
 
+    pub rng: fastrand::Rng,
+
     pub registry: R
 }
 
 
+fn handle_splitters<R: registry::Registry>(hatches: &mut SlotMap<HatchKey, Hatch>, splitters: &mut SlotMap<SplitterKey, Splitter>, settings: &mut Settings) {
+    for splitter in splitters.values_mut() {
+        let disjoint_hatches = hatches.get_disjoint_mut([splitter.input, splitter.output[0], splitter.output[1]]).unwrap();
+        let [input, output_1, output_2] = disjoint_hatches.map(|x| &mut x.buffer);        
+
+        if !input.is_invalid() {
+            if splitter.toggle {
+                Item::transfer_limited::<R>(input, output_1, settings.silo_transfer_size);
+            } else {
+                Item::transfer_limited::<R>(input, output_2, settings.silo_transfer_size);
+            }
+
+            splitter.toggle = !splitter.toggle;
+        }
+    }
+}
 
 
 fn handle_silos<R: registry::Registry>(hatches: &mut SlotMap<HatchKey, Hatch>, silos: &mut SlotMap<SiloKey, Silo>, settings: &mut Settings) {
@@ -174,6 +215,112 @@ fn handle_silos<R: registry::Registry>(hatches: &mut SlotMap<HatchKey, Hatch>, s
 
                 if last.is_invalid() {
                     silo.stack.pop().unwrap();
+                }
+            }
+        }
+    }
+}
+
+fn handle_miners<R: registry::Registry>(machines: &mut SlotMap<MinerKey, Miner>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng) {
+    for machine in machines.values_mut() {
+        // TODO: don't assume given recipe (for tests)
+        let recipe = machine.recipe.unwrap();
+
+        // TODO: don't assume power pole (for tests)
+        let consumer_pole_id = machine.pole.unwrap();
+
+        // set the machine's consumer pole to enabled state
+        let given_load = match poles[consumer_pole_id] {
+            Pole::Consumer { current_load, .. } => current_load,
+            _ => unreachable!()
+        };
+
+        machine.internal_power_buffer += given_load;
+
+        // try to buffer 2 recipes worth of power in internal power buffer
+        if machine.internal_power_buffer < recipe.load * 2 {
+            poles[consumer_pole_id] = Pole::Consumer {
+                target_load: recipe.load,
+                current_load: 0,
+            };
+        } else {
+            poles[consumer_pole_id] = Pole::Consumer {
+                target_load: 0,
+                current_load: 0,
+            };
+        }
+
+        if settings.machine_require_clicky_thing_attached && !machine.clicky_thing_attached {
+            machine.status = MachineStatus::ClickyThingNotAttached;
+            continue;
+        }
+
+        if machine.internal_power_buffer < recipe.load {
+            machine.status = MachineStatus::NonPowered;
+            continue;
+        }
+
+        if let Some(progress) = machine.progress.as_mut() {
+            // check internal power buffer
+
+            machine.status = MachineStatus::None;
+            machine.internal_power_buffer -= recipe.load;
+
+            // machine is currently progressing through the recipe, take one tick off
+            // TODO: add pause / stop / resume functionality here
+            let non_zero = NonZeroU16::new(progress.ticks_remaining.get() - 1);
+
+            if let Some(non_zero) = non_zero {
+                // number of ticks is non-zero, update, and continue
+                progress.ticks_remaining = non_zero;
+            } else {
+                if rng.bool() {
+                    let buffer = &mut hatches[machine.output].buffer;
+                    buffer.accumulate::<R>(&recipe.output);
+                }
+
+                // reset machine progress
+                machine.progress.take().unwrap();
+            }
+        }
+
+
+        if machine.progress.is_none() {
+            if let Some(recipe) = machine.recipe {
+                let outputs_match_recipe_output = (|| {
+                    let buffer = hatches[machine.output].buffer;
+                    if buffer.is_invalid() {
+                        return true;
+                    }
+
+                    // if the item is the same, must make sure that we have enough space in the hatch to place it 
+                    let same_id = buffer.id == recipe.output.id;
+                    let stack_size = R::stack_size(buffer.id);
+
+                    // this CAN overflow if stack size is at MAX
+                    // if we know it will overflow, then we cannot process the recipe
+                    let opt_non_overflowing_enough_space_considering_stack_size = buffer.count.checked_add(recipe.output.count).map(|x| x <= stack_size);
+                    same_id && opt_non_overflowing_enough_space_considering_stack_size.unwrap_or_default()
+                }) ();
+
+                // if requirements are met, then we can begin machine progress
+                if outputs_match_recipe_output {
+                    // resume the progress previously (can only happen if we lose power in the middle of a recipe)
+                    if let Some(previous_progress) = machine.progress.take() {
+                        // godot::global::godot_print!("progress already existed");
+                        machine.progress = Some(previous_progress);
+                    } else {
+                        // godot::global::godot_print!("new progress");
+
+                        machine.progress.replace(Progress {
+                            ticks_remaining: NonZeroU16::new(recipe.ticks)
+                                .expect("recipe ticks must not be zero"),
+                        });
+                    }
+                } else {
+                    if !outputs_match_recipe_output {
+                        machine.status = MachineStatus::RecipeOutputResourcesMismatchOrFull;
+                    }
                 }
             }
         }
@@ -537,6 +684,9 @@ impl<R: registry::Registry> Simulation<R> {
             tick,
             silos,
             settings,
+            miners,
+            splitters,
+            rng,
             ..
         } = self;
 
@@ -560,14 +710,30 @@ impl<R: registry::Registry> Simulation<R> {
         handle_belts::<R>(belts, hatches, tick, settings);
 
         handle_machines::<R>(machines, poles, hatches, settings);
+        handle_miners::<R>(miners, poles, hatches, settings, rng);
 
         handle_silos::<R>(hatches, silos, settings);
+        handle_splitters::<R>(hatches, splitters, settings);
 
         *tick += 1;
     }
 }
 
 impl<R: registry::Registry> Simulation<R> {
+    pub fn add_miner_with_pole(&mut self, recipe: &'static MinerRecipe, pole_key: PoleKey) -> MinerKey {
+        self.poles[pole_key] = Pole::Consumer { target_load: 0, current_load: 0 };
+        
+        let miner = Miner {
+            output: self.hatches.insert(Hatch::empty()),
+            recipe: Some(&recipe),
+            progress: None,
+            pole: Some(pole_key),
+            ..Default::default()
+        };
+
+        self.miners.insert(miner)
+    }
+
     pub fn add_machine_with_pole(&mut self, recipe: &'static Recipe, pole_key: PoleKey, input_hatches: u32, output_hatches: u32) -> MachineKey {
         self.poles[pole_key] = Pole::Consumer { target_load: 0, current_load: 0 };
 
@@ -606,29 +772,16 @@ impl<R: registry::Registry> Simulation<R> {
         (machine_id, pole_id)
     }
 
-    pub fn add_miner_with_pole(&mut self, recipe: &'static Recipe, pole_key: PoleKey) -> MachineKey {
-        self.poles[pole_key] = Pole::Consumer { target_load: 0, current_load: 0 };
-
-        // TODO: scale number of hatches with required recipe I/O
-        let output = self.hatches.insert(Hatch::empty());
-        
-        let machine = Machine {
-            input: vec![],
-            output: vec![output],
-            recipe: Some(&recipe),
-            progress: None,
-            pole: Some(pole_key),
-            ..Default::default()
-        };
-
-        self.machines.insert(machine)
-    }
-
     pub fn remove_machine(&mut self, key: MachineKey) {
         let m = self.machines.remove(key).unwrap();
         for hatch in m.input.iter().chain(m.output.iter()) {
             self.hatches.remove(*hatch).unwrap();
         }
+    }
+
+    pub fn remove_miner(&mut self, key: MinerKey) {
+        let m = self.miners.remove(key).unwrap();
+        self.hatches.remove(m.output).unwrap();
     }
 
     pub fn add_silo(&mut self) -> SiloKey {
@@ -768,5 +921,23 @@ impl<R: registry::Registry> Simulation<R> {
         self.sinks.push(key);
 
         key
+    }
+    
+    pub fn add_splitter(&mut self) -> SplitterKey {
+        let input = self.hatches.insert(Hatch::empty());
+        let output = (0..2).into_iter().map(|x| self.hatches.insert(Hatch::empty())).collect::<Vec<_>>();
+        
+        self.splitters.insert(Splitter {
+            input,
+            output,
+            toggle: false,
+        })
+    }
+
+    pub fn remove_splitter(&mut self, key: SplitterKey) {
+        let s = self.splitters.remove(key).unwrap();
+        self.hatches.remove(s.input).unwrap();
+        self.hatches.remove(s.output[0]).unwrap();
+        self.hatches.remove(s.output[1]).unwrap();        
     }
 }

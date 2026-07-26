@@ -90,6 +90,7 @@ mod test_registry {
                 silo_transfer_size: 1,
                 machine_require_clicky_thing_attached: false,
                 wire_max_flow: crate::LoadUnit::MAX,
+                machine_require_power: true,
             }
         }
     }

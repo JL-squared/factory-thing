@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" uid="uid://dtofdrgmekel" path="res://actors/belt.tscn" id="9_ebec5"]
 [ext_resource type="PackedScene" uid="uid://6cf0y3f3e1lq" path="res://actors/splitter.tscn" id="10_8t03j"]
 [ext_resource type="PackedScene" uid="uid://rkwmwp2wd52b" path="res://actors/miner.tscn" id="11_2ieo8"]
+[ext_resource type="PackedScene" uid="uid://c27tvta2y48dy" path="res://actors/silo.tscn" id="12_ebec5"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_o3jxj"]
 
@@ -58,6 +59,12 @@ scene = ExtResource("11_2ieo8")
 name = "miner"
 metadata/_custom_type_script = "uid://dis5qfym08ouh"
 
+[sub_resource type="Resource" id="Resource_tqiix"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("12_ebec5")
+name = "silo"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
 [node name="Player" type="CharacterBody3D" unique_id=1284926500 groups=["player"]]
 script = ExtResource("1_oul6g")
 sens = 0.002
@@ -87,4 +94,4 @@ script = ExtResource("3_g1dw6")
 
 [node name="Actor Handler" type="Node3D" parent="." unique_id=1125650754]
 script = ExtResource("4_yw30f")
-actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_yllr7"), SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5")])
+actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_yllr7"), SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5"), SubResource("Resource_tqiix")])

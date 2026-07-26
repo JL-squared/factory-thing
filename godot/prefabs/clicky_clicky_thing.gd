@@ -33,3 +33,9 @@ func _on_body_exited(body: Node3D) -> void:
 			attached_rb = null
 			clicky_thing_detached.emit()
 	pass # Replace with function body.
+
+
+func _exit_tree() -> void:
+	if (attached_rb != null):
+		attached_rb.freeze = false
+		clicky_thing_detached.emit()

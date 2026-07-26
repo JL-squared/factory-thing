@@ -267,3 +267,8 @@ If we ever implement HF signals (for processing / remote control / wireless comm
 - Some liquids love to mix together
 
 - For some liquids to mix, the container must be heated to the appropriate temperature ranges (greater than mixing recipe *min* and less than mixing recipe *max*) 
+
+## Randomly Generated Names for Materials
+Instead of sticking with material names that we use on Earth, what if we just make shit the fuck up? Markov Chain Random Name generator type shit
+We stick with the nomencloture used for chemistry, but with made up element names. Could be cool
+These could be applied solely for rare materials.

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://4mriakcgcfxw"]
 
 [ext_resource type="PackedScene" uid="uid://cdxdqbjueofdk" path="res://player/player.tscn" id="1_hq1ik"]
-[ext_resource type="PackedScene" uid="uid://tutiyjxgw5nq" path="res://actors/machine.tscn" id="2_2c62f"]
+[ext_resource type="PackedScene" uid="uid://tutiyjxgw5nq" path="res://actors/machine_crush_iron.tscn" id="2_2c62f"]
 [ext_resource type="PackedScene" uid="uid://cgeue606n6k8p" path="res://prefabs/modular_component.tscn" id="2_hq1ik"]
 [ext_resource type="PackedScene" uid="uid://b4tn4nt3etsyl" path="res://actors/infinite_generator.tscn" id="3_gyfs4"]
 [ext_resource type="PackedScene" uid="uid://c27tvta2y48dy" path="res://actors/silo.tscn" id="5_8mm7a"]

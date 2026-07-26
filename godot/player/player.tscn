@@ -5,13 +5,15 @@
 [ext_resource type="Script" uid="uid://clrqqfwbir381" path="res://player/raycast_handler.gd" id="3_g1dw6"]
 [ext_resource type="Script" uid="uid://gknwpawcagon" path="res://player/actor_handler.gd" id="4_yw30f"]
 [ext_resource type="Script" uid="uid://dis5qfym08ouh" path="res://resources/actor_resource.gd" id="5_qjkh3"]
-[ext_resource type="PackedScene" uid="uid://tutiyjxgw5nq" path="res://actors/machine.tscn" id="6_hg6s5"]
+[ext_resource type="PackedScene" uid="uid://tutiyjxgw5nq" path="res://actors/machine_crush_iron.tscn" id="6_hg6s5"]
 [ext_resource type="PackedScene" uid="uid://pcr0r0mqngyh" path="res://actors/pole.tscn" id="7_8t03j"]
 [ext_resource type="PackedScene" uid="uid://qtdv0bu8jgh5" path="res://actors/wire.tscn" id="8_2ieo8"]
 [ext_resource type="PackedScene" uid="uid://dtofdrgmekel" path="res://actors/belt.tscn" id="9_ebec5"]
 [ext_resource type="PackedScene" uid="uid://6cf0y3f3e1lq" path="res://actors/splitter.tscn" id="10_8t03j"]
 [ext_resource type="PackedScene" uid="uid://rkwmwp2wd52b" path="res://actors/miner.tscn" id="11_2ieo8"]
 [ext_resource type="PackedScene" uid="uid://c27tvta2y48dy" path="res://actors/silo.tscn" id="12_ebec5"]
+[ext_resource type="PackedScene" uid="uid://dj3rf83wmq7yp" path="res://actors/machine_crush_iron_more.tscn" id="13_yllr7"]
+[ext_resource type="PackedScene" uid="uid://dtpo7mur5khn2" path="res://actors/machine_smelt_iron.tscn" id="14_kb6p2"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_o3jxj"]
 
@@ -20,12 +22,6 @@
 [sub_resource type="SphereMesh" id="SphereMesh_2c62f"]
 radius = 0.05
 height = 0.1
-
-[sub_resource type="Resource" id="Resource_yllr7"]
-script = ExtResource("5_qjkh3")
-scene = ExtResource("6_hg6s5")
-name = "machine"
-metadata/_custom_type_script = "uid://dis5qfym08ouh"
 
 [sub_resource type="Resource" id="Resource_kb6p2"]
 script = ExtResource("5_qjkh3")
@@ -65,6 +61,24 @@ scene = ExtResource("12_ebec5")
 name = "silo"
 metadata/_custom_type_script = "uid://dis5qfym08ouh"
 
+[sub_resource type="Resource" id="Resource_yllr7"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("6_hg6s5")
+name = "machine"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
+[sub_resource type="Resource" id="Resource_e7oew"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("13_yllr7")
+name = "machine2"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
+[sub_resource type="Resource" id="Resource_c35mf"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("14_kb6p2")
+name = "machine3"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
 [node name="Player" type="CharacterBody3D" unique_id=1284926500 groups=["player"]]
 script = ExtResource("1_oul6g")
 sens = 0.002
@@ -94,4 +108,4 @@ script = ExtResource("3_g1dw6")
 
 [node name="Actor Handler" type="Node3D" parent="." unique_id=1125650754]
 script = ExtResource("4_yw30f")
-actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_yllr7"), SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5"), SubResource("Resource_tqiix")])
+actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5"), SubResource("Resource_tqiix"), SubResource("Resource_yllr7"), SubResource("Resource_e7oew"), SubResource("Resource_c35mf")])

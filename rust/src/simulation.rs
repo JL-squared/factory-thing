@@ -77,7 +77,6 @@ pub struct Machine {
     pub internal_power_buffer: LoadUnit,
 }
 
-// TODO: generalize machine and miner using traits
 #[derive(Default, Debug)]
 pub struct Miner {
     pub output: HatchKey,

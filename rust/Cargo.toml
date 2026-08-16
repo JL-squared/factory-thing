@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+concat-idents = "1.1.5"
 fastrand = "2.5.0"
 godot = "0.5.3"
+paste = "1.0.15"
 slotmap = "1.1.1"
 vek = "0.17.2"
 

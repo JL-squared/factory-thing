@@ -1,26 +1,82 @@
 use crate::registry;
+use paste::*;
+
+macro_rules! gen_enum_variants {
+    ($name:ident, $plus:ident, $minus:ident) => {
+        paste! {
+            #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+            pub enum $name {
+                [<Tera $plus>],
+                [<Giga $plus>],
+                [<Mega $plus>],
+                [<Kilo $plus>],
+                Meh,
+                [<Kilo $minus>],
+                [<Mega $minus>],
+                [<Giga $minus>],
+                [<Tera $minus>],
+            }
+        }
+    };
+}
+
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Temperature {
+    Cold,
+
+    Normal,
+    
+    Hot,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Softness {
+    Soft,
+    Hard,
+}
+
+gen_enum_variants!(Dirtyness, Pure, Dirty);
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct ItemProperties {
+    pub temperature: Temperature,
+    pub softness: Softness,
+    pub dirtyness: Dirtyness,
+}
+
+impl ItemProperties {
+    pub const fn default() -> Self {
+        Self {
+            temperature: Temperature::Normal,
+            softness: Softness::Hard,
+            dirtyness: Dirtyness::Meh,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Item {
     pub id: u8,
     pub count: u8,
+    pub properties: Vec<ItemProperties>,
 }
 
 impl Item {
     pub const fn one(id: u8) -> Self {
-        Self { id, count: 1 }
+        Self { id, count: 1, properties: ItemProperties::default() }
     }
 
     pub fn full_stack<R: registry::Registry>(id: u8) -> Self {
-        Self { id, count: R::stack_size(id) }
+        Self { id, count: R::stack_size(id), properties: ItemProperties::default() }
     }
 
     pub const fn new(id: u8, count: u8) -> Self {
-        Self { id, count }
+        Self { id, count, properties: ItemProperties::default() }
     }
 
     pub const fn invalid() -> Self {
-        Self { id: 0, count: 0 }
+        Self { id: 0, count: 0, properties: ItemProperties::default() }
     }
 
     pub const fn is_invalid(&self) -> bool {
@@ -181,7 +237,8 @@ mod item_tests {
 
         let item = Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
         assert!(!item.is_invalid());
-        assert_eq!(item, Item { id: ItemTestRegistry::ITEM_WITH_STACK_SIZE_255, count: 1 });
+        assert_eq!(item.id, ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
+        assert_eq!(item.count, 1);
     }
 
     #[test]

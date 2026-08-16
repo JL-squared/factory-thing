@@ -45,4 +45,18 @@ impl HatchNode {
 
         GString::from_str(&text).unwrap()
     }
+
+    #[func]
+    fn get_debug_info(&mut self) -> GString {
+        let tree = self.base().get_tree();
+        let window = tree.get_root().unwrap();
+        let root = window.get_child(0).unwrap();
+        let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
+        let bound = factory_manager.bind();
+        let hatch = &bound.game.hatches[self.key];
+        
+        let string = format!("{:#?}", hatch);
+        
+        GString::from_str(&string).unwrap()
+    }
 }

@@ -36,7 +36,7 @@ pub struct Hatch {
 impl Hatch {
     pub const fn item(id: u8, count: u8) -> Self {
         Self {
-            buffer: Item { id, count },
+            buffer: Item { id, count, properties: ItemProperties::default() },
         }
     }
 

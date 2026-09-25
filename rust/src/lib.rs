@@ -15,6 +15,7 @@ pub use handle::*;
 pub use items::*;
 pub use simulation::*;
 
+use crate::nodes::FluidHatchNode;
 use crate::nodes::HatchNode;
 use crate::nodes::PoleNode;
 use crate::registry::DefaultRegistry;
@@ -87,5 +88,15 @@ impl FactoryManager {
     #[func]
     fn is_hatch_connected(&mut self, hatch: Gd<HatchNode>) -> bool {
         self.game.is_hatch_connected(hatch.bind().key)
+    }
+
+    #[func]
+    fn are_fluid_hatches_connected(&mut self, fst: Gd<FluidHatchNode>, snd: Gd<FluidHatchNode>) -> bool {
+        self.game.are_fluid_hatches_connected(fst.bind().key, snd.bind().key)
+    }
+
+    #[func]
+    fn is_fluid_hatch_connected(&mut self, hatch: Gd<FluidHatchNode>) -> bool {
+        self.game.is_fluid_hatch_connected(hatch.bind().key)
     }
 }

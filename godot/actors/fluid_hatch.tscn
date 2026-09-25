@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://c6dp4rpf4chql"]
+
+[ext_resource type="Script" uid="uid://cy4j7swyx3o4b" path="res://actors/fluid_hatch.gd" id="1_4xbdb"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ybbri"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ybbri"]
+size = Vector3(1, 1, 0.1)
+
+[node name="Fluid Hatch" type="FluidHatchNode" unique_id=927012759 groups=["actors"]]
+script = ExtResource("1_4xbdb")
+
+[node name="CSGCylinder3D" type="CSGCylinder3D" parent="." unique_id=801637163]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+height = 0.1
+sides = 16
+smooth_faces = false
+material = SubResource("StandardMaterial3D_ybbri")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=597851549]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=256745206]
+shape = SubResource("BoxShape3D_ybbri")

@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://dkqbw22vbh5ys" path="res://ui/user_interface.tscn" id="5_hq1ik"]
 [ext_resource type="PackedScene" uid="uid://rkwmwp2wd52b" path="res://actors/miner.tscn" id="7_nfk4m"]
 [ext_resource type="PackedScene" uid="uid://6cf0y3f3e1lq" path="res://actors/splitter.tscn" id="8_66tet"]
+[ext_resource type="PackedScene" uid="uid://d3imvejal0jee" path="res://actors/fluid_buffer.tscn" id="9_7ycvg"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_0f027"]
 size = Vector3(50, 1, 50)
@@ -127,3 +128,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -1)
 
 [node name="Splitter" parent="." unique_id=744110374 instance=ExtResource("8_66tet")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.39237, 1.5, -6.154707)
+
+[node name="FluidBuffer" parent="." unique_id=1658536519 instance=ExtResource("9_7ycvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.455929, 1.5, -6.815716)

@@ -15,6 +15,14 @@ use crate::handle::*;
 pub type LoadUnit = isize;
 pub type HealthUnit = u8;
 
+
+#[derive(Debug)]
+pub struct Pipe {
+    pub pipe_start: FluidHatchKey,
+    pub pipe_end: FluidHatchKey,
+}
+
+
 #[derive(Debug)]
 pub struct Belt {
     pub belt_start: HatchKey,
@@ -44,6 +52,16 @@ impl Hatch {
         Self {
             buffer: Item::invalid(),
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct FluidHatch {
+}
+impl FluidHatch {
+    fn empty() -> FluidHatch {
+        FluidHatch {}
     }
 }
 
@@ -130,6 +148,14 @@ pub struct Silo {
     pub stack: Vec<Item>,
 }
 
+#[derive(Debug)]
+pub struct FluidBuffer {
+    pub input: FluidHatchKey,
+    pub output: FluidHatchKey,
+    pub fluid: i32,
+}
+
+
 pub struct Settings {
     pub wire_damage_per_tick: Option<u8>,
     pub wire_max_flow: LoadUnit,
@@ -159,6 +185,8 @@ impl Default for Settings {
 #[derive(Default)]
 pub struct Simulation<R: registry::Registry> {
     pub hatches: SlotMap<HatchKey, Hatch>,
+    pub fluid_hatches: SlotMap<FluidHatchKey, FluidHatch>,
+    pub pipes: SlotMap<PipeKey, Pipe>,
     pub machines: SlotMap<MachineKey, Machine>,
     pub miners: SlotMap<MinerKey, Miner>,
     pub splitters: SlotMap<SplitterKey, Splitter>,
@@ -166,6 +194,8 @@ pub struct Simulation<R: registry::Registry> {
     pub poles: SlotMap<PoleKey, Pole>,
     pub wires: SlotMap<WireKey, Wire>,
     pub silos: SlotMap<SiloKey, Silo>,
+    pub fluid_buffers: SlotMap<FluidBufferKey, FluidBuffer>,
+    
     pub settings: Settings,
     pub tick: u64,
 
@@ -219,6 +249,12 @@ fn handle_silos<R: registry::Registry>(hatches: &mut SlotMap<HatchKey, Hatch>, s
                 }
             }
         }
+    }
+}
+
+fn handle_buffers<R: registry::Registry>(buffers: &mut SlotMap<FluidBufferKey, FluidBuffer>, settings: &mut Settings) {
+    for buffer in buffers.values_mut() {
+        buffer.fluid += 1;
     }
 }
 
@@ -691,6 +727,7 @@ impl<R: registry::Registry> Simulation<R> {
             hatches,
             tick,
             silos,
+            fluid_buffers,
             settings,
             miners,
             splitters,
@@ -722,6 +759,7 @@ impl<R: registry::Registry> Simulation<R> {
 
         handle_silos::<R>(hatches, silos, settings);
         handle_splitters::<R>(hatches, splitters, settings);
+        handle_buffers::<R>(fluid_buffers, settings);
 
         *tick += 1;
     }
@@ -809,6 +847,23 @@ impl<R: registry::Registry> Simulation<R> {
         self.hatches.remove(m.output);
     }
 
+    pub fn add_fluid_buffer(&mut self) -> FluidBufferKey {
+        let input = self.fluid_hatches.insert(FluidHatch::empty());
+        let output = self.fluid_hatches.insert(FluidHatch::empty());
+
+        self.fluid_buffers.insert(FluidBuffer {
+            input,
+            output,
+            fluid: 0,
+        })
+    }
+
+    pub fn remove_fluid_buffer(&mut self, key: FluidBufferKey) {
+        let m = self.fluid_buffers.remove(key).unwrap();
+        self.fluid_hatches.remove(m.input);
+        self.fluid_hatches.remove(m.output);
+    }
+
     // not really adding...
     pub fn add_generator_with_pole(&mut self, max_load: LoadUnit, pole_key: PoleKey) {
         self.poles[pole_key] = Pole::Generator { max_load, current_load: 0 }
@@ -847,6 +902,14 @@ impl<R: registry::Registry> Simulation<R> {
 
     pub fn is_hatch_connected(&self, hatch: HatchKey) -> bool {
         self.belts.values().any(|belt| belt.belt_start == hatch || belt.belt_end == hatch)
+    }
+
+    pub fn are_fluid_hatches_connected(&self, a: FluidHatchKey, b: FluidHatchKey) -> bool {
+        self.pipes.values().any(|pipe| (pipe.pipe_start == a && pipe.pipe_end == b) || (pipe.pipe_start == b && pipe.pipe_end == a))
+    }
+
+    pub fn is_fluid_hatch_connected(&self, hatch: FluidHatchKey) -> bool {
+        self.pipes.values().any(|pipe| pipe.pipe_start == hatch || pipe.pipe_end == hatch)
     }
     
     pub fn add_wire_with_max_flow(&mut self, a: PoleKey, b: PoleKey, max_flow: LoadUnit) -> WireKey {
@@ -891,6 +954,18 @@ impl<R: registry::Registry> Simulation<R> {
         })
     }
 
+    pub fn add_pipe(&mut self, output_hatch: FluidHatchKey, input_hatch: FluidHatchKey, length: f32) -> PipeKey {
+        assert!(!self.are_fluid_hatches_connected(output_hatch, input_hatch), "cannot add duplicate pipe");
+        assert!(output_hatch != input_hatch, "fluid hatches must not be identical");
+
+        let buffer_length = 100;
+
+        self.pipes.insert(Pipe {
+            pipe_start: output_hatch,
+            pipe_end: input_hatch,
+        })
+    }
+
     pub fn calculate_belt_buffer_size(&self, length: BeltSize) -> usize {
         match length {
             BeltSize::BufferLength(x) => x as f32,
@@ -900,6 +975,10 @@ impl<R: registry::Registry> Simulation<R> {
     
     pub fn remove_belt(&mut self, belt: BeltKey) {
         self.belts.remove(belt);
+    }
+
+    pub fn remove_pipe(&mut self, pipe: PipeKey) {
+        self.pipes.remove(pipe);
     }
     
     

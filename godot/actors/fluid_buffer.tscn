@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://d3imvejal0jee"]
+
+[ext_resource type="PackedScene" uid="uid://c6dp4rpf4chql" path="res://actors/fluid_hatch.tscn" id="1_mya6h"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6a4ke"]
+size = Vector3(2, 6, 2)
+
+[node name="FluidBuffer" type="FluidBufferNode" unique_id=786732225 groups=["actors"]]
+
+[node name="CSGCombiner3D" type="CSGCombiner3D" parent="." unique_id=919800609]
+
+[node name="CSGCylinder3D" type="CSGCylinder3D" parent="CSGCombiner3D" unique_id=960206462]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0146484, 0)
+radius = 1.0
+height = 6.029297
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=1079998213]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=1945520073]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0.002)
+shape = SubResource("BoxShape3D_6a4ke")
+
+[node name="Input Fluid Hatch" parent="." unique_id=927012759 instance=ExtResource("1_mya6h")]
+input_hatch = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.2)
+
+[node name="Output Fluid Hatch" parent="." unique_id=1575181738 instance=ExtResource("1_mya6h")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.2)
+type = 1

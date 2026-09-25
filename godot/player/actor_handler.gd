@@ -87,6 +87,22 @@ func update_hologram_if_any() -> void:
 					hologram_actor.look_at_from_position(pos, node_p1)
 					var mesh = hologram_actor.get_node("Belt Visual") as Node3D 
 					mesh.scale.z = d * 0.5
+			ActorResource.ActorType.Pipe:					
+				if (fst_selected_actor != null):
+					hologram_actor.show()
+					var node_p1 = (fst_selected_actor as Node3D).global_position
+					
+					var node_p2 = -camera.global_basis.z + camera.global_position
+					if (raycaster.get_collider() != null):
+						var parent = raycaster.get_collider().get_parent()		
+						if (parent is FluidHatchNode and parent != fst_selected_actor):
+							node_p2 = (parent as Node3D).global_position
+					
+					var d = node_p1.distance_to(node_p2)
+					var pos = (node_p1 + node_p2) * 0.5
+					hologram_actor.look_at_from_position(pos, node_p1)
+					var mesh = hologram_actor.get_node("Pipe Visual") as Node3D 
+					mesh.scale.z = d * 0.5
 			_:
 				if (raycaster.get_collider() != null):
 					hologram_actor.show()
@@ -106,7 +122,7 @@ func get_looking_at_actor() -> Node3D:
 func get_fst_snd_actor() -> Node3D:
 	var actor = get_looking_at_actor()
 	
-	if (actor is HatchNode or actor is PoleNode):
+	if (actor is HatchNode or actor is PoleNode or actor is FluidHatchNode):
 		return actor
 	else:
 		return null
@@ -121,6 +137,8 @@ func _input(event):
 				ActorResource.ActorType.Wire:					
 					select_actor()
 				ActorResource.ActorType.Belt:					
+					select_actor()
+				ActorResource.ActorType.Pipe:					
 					select_actor()
 				_:
 					place_actor()
@@ -188,6 +206,11 @@ func recreate_hologram_actor() -> void:
 				hologram_actor = selected_actor_resource.scene.instantiate()
 			else:
 				return
+		ActorResource.ActorType.Pipe:
+			if ((fst_selected_actor as FluidHatchNode) != null):
+				hologram_actor = selected_actor_resource.scene.instantiate()
+			else:
+				return
 		_:
 			hologram_actor = selected_actor_resource.scene.instantiate()
 
@@ -232,6 +255,23 @@ func place_actor() -> void:
 				
 			if (manager.is_hatch_connected(snd_selected_actor as HatchNode)):
 				print("cannot place belt")
+				return
+				
+		ActorResource.ActorType.Pipe:
+			if ((fst_selected_actor as FluidHatchNode) == null || (snd_selected_actor as FluidHatchNode) == null):
+				print("need to select two fluid hatches to pipe up")
+				return
+				
+			if (manager.are_fluid_hatches_connected(fst_selected_actor as FluidHatchNode, snd_selected_actor as FluidHatchNode)):
+				print("cannot place pipe")
+				return
+				
+			if (manager.is_fluid_hatch_connected(fst_selected_actor as FluidHatchNode)):
+				print("cannot place pipe")
+				return
+				
+			if (manager.is_fluid_hatch_connected(snd_selected_actor as FluidHatchNode)):
+				print("cannot place pipe")
 				return
 		_:
 			pass
@@ -283,6 +323,28 @@ func place_actor() -> void:
 			
 			fst_selected_actor = null
 			snd_selected_actor = null
+		ActorResource.ActorType.Pipe:
+			var node_p1 = (fst_selected_actor as Node3D).global_position
+			var node_p2 = (snd_selected_actor as Node3D).global_position
+			var d = node_p1.distance_to(node_p2)
+			var pos = (node_p1 + node_p2) * 0.5
+			position = pos
+			node.look_at_from_position(pos, node_p1)
+			
+			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
+			col_shape.shape = col_shape.shape.duplicate()
+			(col_shape.shape as BoxShape3D).size.z = d
+			
+			var mesh = node.get_node("Pipe Visual") as Node3D 
+			mesh.scale.z = d * 0.5
+			
+			var pipe = node as PipeNode
+			pipe.pipe_start_hatch_ref = fst_selected_actor as FluidHatchNode
+			pipe.pipe_end_hatch_ref = snd_selected_actor as FluidHatchNode
+			
+			
+			fst_selected_actor = null
+			snd_selected_actor = null
 		_:
 			position = get_actor_position_from_raycast()
 	
@@ -292,7 +354,6 @@ func place_actor() -> void:
 	
 func remove_actor() -> void: 
 	var collider = raycaster.get_collider()
-	
 	if (collider == null):
 		return
 	

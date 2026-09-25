@@ -9,6 +9,7 @@ enum ActorType {
 	Normal,
 	Wire,
 	Belt,
+	Pipe,
 }
 
 # Make sure that every parameter has a default value.

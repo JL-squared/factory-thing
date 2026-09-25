@@ -14,6 +14,8 @@
 [ext_resource type="PackedScene" uid="uid://c27tvta2y48dy" path="res://actors/silo.tscn" id="12_ebec5"]
 [ext_resource type="PackedScene" uid="uid://dj3rf83wmq7yp" path="res://actors/machine_crush_iron_more.tscn" id="13_yllr7"]
 [ext_resource type="PackedScene" uid="uid://dtpo7mur5khn2" path="res://actors/machine_smelt_iron.tscn" id="14_kb6p2"]
+[ext_resource type="PackedScene" uid="uid://d3imvejal0jee" path="res://actors/fluid_buffer.tscn" id="15_wodsf"]
+[ext_resource type="PackedScene" uid="uid://dic1xarmtssu5" path="res://actors/pipe.tscn" id="16_32hag"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_o3jxj"]
 
@@ -79,6 +81,19 @@ scene = ExtResource("14_kb6p2")
 name = "machine3"
 metadata/_custom_type_script = "uid://dis5qfym08ouh"
 
+[sub_resource type="Resource" id="Resource_7ycvg"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("15_wodsf")
+name = "fluid buffer"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
+[sub_resource type="Resource" id="Resource_imaqh"]
+script = ExtResource("5_qjkh3")
+scene = ExtResource("16_32hag")
+type = 3
+name = "pipe"
+metadata/_custom_type_script = "uid://dis5qfym08ouh"
+
 [node name="Player" type="CharacterBody3D" unique_id=1284926500 groups=["player"]]
 script = ExtResource("1_oul6g")
 sens = 0.002
@@ -108,4 +123,4 @@ script = ExtResource("3_g1dw6")
 
 [node name="Actor Handler" type="Node3D" parent="." unique_id=1125650754]
 script = ExtResource("4_yw30f")
-actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5"), SubResource("Resource_tqiix"), SubResource("Resource_yllr7"), SubResource("Resource_e7oew"), SubResource("Resource_c35mf")])
+actors = Array[ExtResource("5_qjkh3")]([SubResource("Resource_kb6p2"), SubResource("Resource_wodsf"), SubResource("Resource_32hag"), SubResource("Resource_2ieo8"), SubResource("Resource_ebec5"), SubResource("Resource_tqiix"), SubResource("Resource_yllr7"), SubResource("Resource_e7oew"), SubResource("Resource_c35mf"), SubResource("Resource_7ycvg"), SubResource("Resource_imaqh")])

@@ -7,6 +7,9 @@ mod pole;
 mod silo;
 mod wire;
 mod splitter;
+mod fluid_hatch;
+mod fluid_buffer;
+mod pipe;
 
 use godot::classes::*;
 use godot::prelude::*;
@@ -32,3 +35,5 @@ pub use miner::*;
 pub use pole::*;
 pub use silo::*;
 pub use wire::*;
+pub use fluid_hatch::*;
+pub use fluid_buffer::*;

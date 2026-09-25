@@ -150,7 +150,7 @@ impl Default for Settings {
             belt_ticks_between_transfers: 16,
             belt_transfer_size: 1,
             silo_transfer_size: 1,
-            machine_require_clicky_thing_attached: true,
+            machine_require_clicky_thing_attached: false,
             machine_require_power: true,
         }
     }

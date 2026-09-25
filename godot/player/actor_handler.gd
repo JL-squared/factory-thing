@@ -149,6 +149,13 @@ func _input(event):
 func select_actor() -> void:
 	if (fst_selected_actor == null):
 		fst_selected_actor = get_fst_snd_actor()
+		
+		if (fst_selected_actor is HatchNode):
+			if ((fst_selected_actor as HatchNode).input_hatch):
+				# first hatch is input hatch, which is invalid 
+				# we only do belt connections from OUTPUT hatches TOWARDS input hatches
+				fst_selected_actor = null
+				
 		if (fst_selected_actor != null):
 			print("selected first actor")
 	else:

@@ -148,6 +148,12 @@ For example, one can re-use the generated heat from machines and use it for some
 
 What *hopefully* makes solving problems consisting of this system a bit more different than the usual is that now you *dont need to* use specific "connectors" (belts / wires) to transfer units across space. you can use air as a medium itself.
 
+
+## Machines Status Power Graph
+What if machines took a certain amount of time to power up and power down?
+What if the machines took different amounts of power depending on their status? (power up, idle, active, power down)
+- This could incentivize the player to improve the "fullness" of their belts in order to keep machines running at high efficiency
+
 ## Item Properties
 Each instantiated item could have some properties associated with it:
 - Temperature
@@ -272,3 +278,7 @@ If we ever implement HF signals (for processing / remote control / wireless comm
 Instead of sticking with material names that we use on Earth, what if we just make shit the fuck up? Markov Chain Random Name generator type shit
 We stick with the nomencloture used for chemistry, but with made up element names. Could be cool
 These could be applied solely for rare materials.
+
+# Crafting Table Idea
+- stolen off of logan
+- you should be able to attach tools (hammers, screwdriver, wirecutter, etc...) to the workbench itself. the tools should not be part of the crafting recipe itself

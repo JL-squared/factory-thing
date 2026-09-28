@@ -5,6 +5,13 @@ use super::*;
 pub struct FluidBufferNode {
     base: Base<Node3D>,
     key: FluidBufferKey,
+
+    #[export]
+    producer: bool,
+    
+    #[export]
+    consumer: bool,
+    
 }
 
 #[godot_api]
@@ -13,6 +20,8 @@ impl INode3D for FluidBufferNode {
         Self {
             base,
             key: FluidBufferKey::null(),
+            producer: false,
+            consumer: false,
         }
     }
 
@@ -23,7 +32,9 @@ impl INode3D for FluidBufferNode {
         let mut factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let mut bound = factory_manager.bind_mut();
 
-        self.key = bound.game.add_fluid_buffer();
+        self.key = bound.game.add_fluid_buffer(self.consumer, self.producer);
+
+        // bound.game.fluid_buffers[self.key].fluid = self.starting_volume;
                 
         for child in self.base().get_children().iter_shared() {
             if let Ok(mut hatch_node) = child.try_cast::<FluidHatchNode>() {

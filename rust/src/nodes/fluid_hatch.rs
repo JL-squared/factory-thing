@@ -39,11 +39,8 @@ impl FluidHatchNode {
         let root = window.get_child(0).unwrap();
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
-
-        //let item = bound.game.fluid_hatches[self.key].buffer;
-        //let item_text = item.display::<DefaultRegistry>();
-        //let text = format!("id: {:?}. {}", self.key, item_text);
-        let text = String::new();
+        let fluid = bound.game.fluid_hatches[self.key].fluid;
+        let text = format!("id: {:?}. {}", self.key, fluid);
         GString::from_str(&text).unwrap()
     }
 }

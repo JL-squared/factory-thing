@@ -91,6 +91,7 @@ mod test_registry {
                 machine_require_clicky_thing_attached: false,
                 wire_max_flow: crate::LoadUnit::MAX,
                 machine_require_power: true,
+                pipe_buffer_scaling_factor: 2f32,
             }
         }
     }
@@ -451,7 +452,7 @@ mod sink_source_tests {
         let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON));
         let sink = sim.add_sink();
         
-        let belt = sim.add_belt_2(source, sink, BeltSize::BufferLength(10));
+        let belt = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
 
         sim.tick();
 

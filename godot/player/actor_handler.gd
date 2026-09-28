@@ -333,7 +333,7 @@ func place_actor() -> void:
 			
 			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
 			col_shape.shape = col_shape.shape.duplicate()
-			(col_shape.shape as BoxShape3D).size.z = d
+			(col_shape.shape as CylinderShape3D).height = d
 			
 			var mesh = node.get_node("Pipe Visual") as Node3D 
 			mesh.scale.z = d * 0.5

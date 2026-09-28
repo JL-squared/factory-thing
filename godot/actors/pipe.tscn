@@ -2,20 +2,22 @@
 
 [ext_resource type="Material" uid="uid://dvyg4qib57urk" path="res://materials/belt.tres" id="1_imaqh"]
 
-[sub_resource type="BoxMesh" id="BoxMesh_susb0"]
-size = Vector3(1, 1, 2)
+[sub_resource type="CylinderMesh" id="CylinderMesh_imaqh"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_mxfmc"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_l3rl1"]
+height = 1.0
 
 [node name="Pipe" type="PipeNode" unique_id=857843266 groups=["actors"]]
 
 [node name="Pipe Visual" type="Node3D" parent="." unique_id=2000455407]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Pipe Visual" unique_id=157024540]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
 material_override = ExtResource("1_imaqh")
-mesh = SubResource("BoxMesh_susb0")
+mesh = SubResource("CylinderMesh_imaqh")
 
 [node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=1212345998]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=450070708]
-shape = SubResource("BoxShape3D_mxfmc")
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+shape = SubResource("CylinderShape3D_l3rl1")

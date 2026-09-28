@@ -20,6 +20,7 @@ pub type HealthUnit = u8;
 pub struct Pipe {
     pub pipe_start: FluidHatchKey,
     pub pipe_end: FluidHatchKey,
+    pub buffer: Vec<f32>,
 }
 
 
@@ -31,10 +32,11 @@ pub struct Belt {
     pub last_transfer_tick: u64,
 }
 
-pub enum BeltSize {
+pub enum BufferSize {
     BufferLength(u32),
     WorldLength(f32),
 }
+
 
 #[derive(Debug)]
 pub struct Hatch {
@@ -58,10 +60,13 @@ impl Hatch {
 
 #[derive(Debug)]
 pub struct FluidHatch {
+    pub fluid: f32,
 }
 impl FluidHatch {
     fn empty() -> FluidHatch {
-        FluidHatch {}
+        FluidHatch {
+            fluid: Default::default(),
+        }
     }
 }
 
@@ -152,7 +157,9 @@ pub struct Silo {
 pub struct FluidBuffer {
     pub input: FluidHatchKey,
     pub output: FluidHatchKey,
-    pub fluid: i32,
+    pub producer: bool,
+    pub consumer: bool,
+    pub fluid: f32,
 }
 
 
@@ -165,6 +172,9 @@ pub struct Settings {
     pub silo_transfer_size: u8,
     pub machine_require_clicky_thing_attached: bool,
     pub machine_require_power: bool,
+
+
+    pub pipe_buffer_scaling_factor: f32,
 }
 
 impl Default for Settings {
@@ -178,6 +188,7 @@ impl Default for Settings {
             silo_transfer_size: 1,
             machine_require_clicky_thing_attached: false,
             machine_require_power: true,
+            pipe_buffer_scaling_factor: 2f32,
         }
     }
 }
@@ -252,11 +263,79 @@ fn handle_silos<R: registry::Registry>(hatches: &mut SlotMap<HatchKey, Hatch>, s
     }
 }
 
-fn handle_buffers<R: registry::Registry>(buffers: &mut SlotMap<FluidBufferKey, FluidBuffer>, settings: &mut Settings) {
-    for buffer in buffers.values_mut() {
-        buffer.fluid += 1;
+fn handle_buffers<R: registry::Registry>(fluid_hatches: &mut SlotMap<FluidHatchKey, FluidHatch>, fluid_buffer: &mut SlotMap<FluidBufferKey, FluidBuffer>, settings: &mut Settings) {
+    for fluid_buffer in fluid_buffer.values_mut() {
+        equalize_hatch(fluid_hatches, fluid_buffer.input, &mut fluid_buffer.fluid);
+        equalize_hatch(fluid_hatches, fluid_buffer.output, &mut fluid_buffer.fluid);
+
+        if fluid_buffer.consumer {
+            fluid_buffer.fluid = 0f32;
+        }
+        
+        if fluid_buffer.producer {
+            fluid_buffer.fluid = 100f32;
+        }
     }
 }
+
+
+fn handle_pipes<R: registry::Registry>(pipes: &mut SlotMap<PipeKey, Pipe>, fluid_hatches: &mut SlotMap<FluidHatchKey, FluidHatch>, tick: &u64, settings: &mut Settings) {
+    for pipe in pipes.values_mut() {
+        let Pipe {
+            pipe_start,
+            pipe_end,
+            ref mut buffer,
+        } = *pipe;
+
+        // don't do anything if belt points to invalid hatches
+        if !fluid_hatches.contains_key(pipe_start) || !fluid_hatches.contains_key(pipe_end) {
+            continue;
+        }
+
+        equalize_hatch(fluid_hatches, pipe_end, buffer.last_mut().unwrap());
+        equalize_hatch(fluid_hatches, pipe_start, buffer.first_mut().unwrap());
+        
+        for i in 0..(buffer.len()-1) {
+            let [a, b] = buffer.get_disjoint_mut([i, i+1]).unwrap();
+            equalize_inner(a, b);
+        }
+    }
+}
+
+fn equalize_hatch(hatches: &mut SlotMap<FluidHatchKey, FluidHatch>, key: FluidHatchKey, hatch: &mut f32) {
+    let dst = &mut hatches[key].fluid;
+    let src = hatch;
+
+    equalize_inner(dst, src);
+}
+
+fn equalize_inner(a: &mut f32, b: &mut f32) {
+    fn z(a: f32) -> f32 {
+        a.max(0f32)
+    }
+    
+    let transfer = z(*a) - z(*b);
+    
+
+    let bounds = 10.0f32;
+    let transfer = transfer.clamp(-bounds, bounds);
+    let transfer = transfer * 0.2;
+
+    *a -= transfer;
+    *b += transfer;
+}
+
+#[test]
+fn awooo() {
+    let mut a = 0f32;
+    let mut b = 100f32;
+
+    equalize_inner(&mut a, &mut b);
+
+    dbg!(a);
+    dbg!(b);
+}
+
 
 struct Commons<'a, R: GenericRecipe> {
     recipe: &'a R,
@@ -507,7 +586,7 @@ fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &m
     }
 }
 
-fn handle_belts<R: registry::Registry>(belts: &mut SlotMap<BeltKey, Belt>, hatches: &mut SlotMap<HatchKey, Hatch>, tick: &mut u64, settings: &mut Settings) {
+fn handle_belts<R: registry::Registry>(belts: &mut SlotMap<BeltKey, Belt>, hatches: &mut SlotMap<HatchKey, Hatch>, tick: &u64, settings: &mut Settings) {
     for belt in belts.values_mut() {
         let Belt {
             belt_start,
@@ -727,6 +806,8 @@ impl<R: registry::Registry> Simulation<R> {
             hatches,
             tick,
             silos,
+            pipes,
+            fluid_hatches,
             fluid_buffers,
             settings,
             miners,
@@ -753,13 +834,14 @@ impl<R: registry::Registry> Simulation<R> {
 
         // doing belt logic before machine logic fixes "sigle-tick idle" issue when belt transfer speed === machine recipe tick speed (halting on input materials) 
         handle_belts::<R>(belts, hatches, tick, settings);
+        handle_pipes::<R>(pipes, fluid_hatches, tick, settings);
 
         handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng);
         handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng);
 
         handle_silos::<R>(hatches, silos, settings);
         handle_splitters::<R>(hatches, splitters, settings);
-        handle_buffers::<R>(fluid_buffers, settings);
+        handle_buffers::<R>(fluid_hatches, fluid_buffers, settings);
 
         *tick += 1;
     }
@@ -847,14 +929,16 @@ impl<R: registry::Registry> Simulation<R> {
         self.hatches.remove(m.output);
     }
 
-    pub fn add_fluid_buffer(&mut self) -> FluidBufferKey {
+    pub fn add_fluid_buffer(&mut self, consumer: bool, producer: bool) -> FluidBufferKey {
         let input = self.fluid_hatches.insert(FluidHatch::empty());
         let output = self.fluid_hatches.insert(FluidHatch::empty());
 
         self.fluid_buffers.insert(FluidBuffer {
             input,
             output,
-            fluid: 0,
+            fluid: 0f32,
+            producer,
+            consumer,
         })
     }
 
@@ -940,11 +1024,11 @@ impl<R: registry::Registry> Simulation<R> {
     }
 
     // TODO: add belt tiers
-    pub fn add_belt_2(&mut self, output_hatch: HatchKey, input_hatch: HatchKey, length: BeltSize) -> BeltKey {
+    pub fn add_belt_2(&mut self, output_hatch: HatchKey, input_hatch: HatchKey, length: BufferSize) -> BeltKey {
         assert!(!self.are_hatches_connected(output_hatch, input_hatch), "cannot add duplicate belt");
         assert!(output_hatch != input_hatch, "belt hatches must not be identical");
 
-        let buffer_length = self.calculate_belt_buffer_size(length);
+        let buffer_length = self.calculate_logical_belt_buffer_size(length);
 
         self.belts.insert(Belt {
             belt_start: output_hatch,
@@ -954,23 +1038,32 @@ impl<R: registry::Registry> Simulation<R> {
         })
     }
 
-    pub fn add_pipe(&mut self, output_hatch: FluidHatchKey, input_hatch: FluidHatchKey, length: f32) -> PipeKey {
+    pub fn add_pipe(&mut self, output_hatch: FluidHatchKey, input_hatch: FluidHatchKey, length: BufferSize) -> PipeKey {
         assert!(!self.are_fluid_hatches_connected(output_hatch, input_hatch), "cannot add duplicate pipe");
         assert!(output_hatch != input_hatch, "fluid hatches must not be identical");
 
-        let buffer_length = 100;
+        let buffer_length = self.calculate_logical_pipe_buffer_size(length);
 
         self.pipes.insert(Pipe {
+            buffer: vec![0f32; buffer_length],
             pipe_start: output_hatch,
             pipe_end: input_hatch,
         })
     }
 
-    pub fn calculate_belt_buffer_size(&self, length: BeltSize) -> usize {
+    pub fn calculate_logical_buffer_size(length: BufferSize, world_scaling_factor: f32) -> usize {
         match length {
-            BeltSize::BufferLength(x) => x as f32,
-            BeltSize::WorldLength(x) => x * self.settings.belt_buffer_scaling_factor,
+            BufferSize::BufferLength(x) => x as f32,
+            BufferSize::WorldLength(x) => x * world_scaling_factor,
         }.ceil().max(2f32) as usize
+    }
+
+    pub fn calculate_logical_belt_buffer_size(&self, length: BufferSize) -> usize {
+        Self::calculate_logical_buffer_size(length, self.settings.belt_buffer_scaling_factor)
+    }
+
+    pub fn calculate_logical_pipe_buffer_size(&self, length: BufferSize) -> usize {
+        Self::calculate_logical_buffer_size(length, self.settings.pipe_buffer_scaling_factor)
     }
     
     pub fn remove_belt(&mut self, belt: BeltKey) {

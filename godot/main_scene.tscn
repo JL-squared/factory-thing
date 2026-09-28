@@ -130,4 +130,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.39237, 1.5, -6.154707)
 
 [node name="FluidBuffer" parent="." unique_id=1658536519 instance=ExtResource("9_7ycvg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.455929, 1.5, -6.815716)
+consumer = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.906782, 1.5, 6.974597)
+
+[node name="FluidBuffer2" parent="." unique_id=786732225 instance=ExtResource("9_7ycvg")]
+producer = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.455929, 1.5, -14.815716)

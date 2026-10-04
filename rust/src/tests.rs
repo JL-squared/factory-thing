@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod test_registry {
-    use crate::registry::*;
+    use crate::common::LoadUnit;
+use crate::common::Settings;
+use crate::registry::*;
     use crate::items::*;
 
     #[derive(Default)]
@@ -80,7 +82,7 @@ mod test_registry {
         }
     }
 
-    impl crate::simulation::Settings {
+    impl Settings {
         fn testing() -> Self {
             Self {
                 wire_damage_per_tick: None,
@@ -89,7 +91,7 @@ mod test_registry {
                 belt_transfer_size: 1,
                 silo_transfer_size: 1,
                 machine_require_clicky_thing_attached: false,
-                wire_max_flow: crate::LoadUnit::MAX,
+                wire_max_flow: LoadUnit::MAX,
                 machine_require_power: true,
                 pipe_buffer_scaling_factor: 2f32,
             }
@@ -100,7 +102,7 @@ mod test_registry {
     impl<R: Registry> crate::simulation::Simulation<R> {
         pub fn testing() -> Self {
             Self {
-                settings: crate::simulation::Settings::testing(),
+                settings: Settings::testing(),
                 ..Default::default()
             }
         }
@@ -438,7 +440,7 @@ mod power_tests {
 #[cfg(test)]
 mod sink_source_tests {
     use super::test_registry::*;
-    use crate::*;
+    use crate::{common::BufferSize, *};
 
     type TestGame = Simulation<TestRegistry>;
     

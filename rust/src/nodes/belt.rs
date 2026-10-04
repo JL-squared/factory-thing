@@ -1,3 +1,5 @@
+use crate::common::BufferSize;
+
 use super::*;
 
 #[derive(GodotClass)]
@@ -58,7 +60,7 @@ impl INode3D for BeltNode {
         let b = end_hatch.base().get_global_position();
         let length = Vector3::distance_to(a,b);
 
-        self.key = bound.game.add_belt_2(output_hatch, input_hatch, crate::simulation::BufferSize::WorldLength(length));
+        self.key = bound.game.add_belt_2(output_hatch, input_hatch, BufferSize::WorldLength(length));
         godot::global::godot_print!("{:?}", self.key);
     }
 

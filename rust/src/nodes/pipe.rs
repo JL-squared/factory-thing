@@ -1,3 +1,5 @@
+use crate::common::BufferSize;
+
 use super::*;
 
 #[derive(GodotClass)]
@@ -54,7 +56,7 @@ impl INode3D for PipeNode {
         
         let a = start_hatch.base().get_global_position();
         let b = end_hatch.base().get_global_position();
-        let length = crate::simulation::BufferSize::WorldLength(Vector3::distance_to(a,b));
+        let length = BufferSize::WorldLength(Vector3::distance_to(a,b));
 
         self.key = bound.game.add_pipe(output_hatch, input_hatch, length);
         godot::global::godot_print!("{:?}", self.key);

@@ -32,8 +32,8 @@ impl INode3D for MinerNode {
         pole.owned = true;
         self.pole_key = pole.key;
         
-        const RECIPE: MinerRecipe = MinerRecipe { id: "", name: "", output: Item::new(DefaultRegistry::RAW_IRON_1, 1), ticks: 128, load: 30 };
-        self.key = bound.game.add_miner_with_pole(&RECIPE, pole.key);
+        const RECIPE: &MinerRecipe = &MinerRecipe { id: "", name: "", output: Item::new(DefaultRegistry::RAW_IRON_1, 1), ticks: 128, load: 30 };
+        self.key = bound.game.add_miner_with_pole(RECIPE, pole.key);
 
         if let Ok(mut hatch_node) = self.base().find_child("Output Hatch").unwrap().try_cast::<HatchNode>() {
             let mut node = hatch_node.bind_mut();

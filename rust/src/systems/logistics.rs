@@ -12,6 +12,16 @@ pub struct Belt {
     pub buffer: Vec<Item>,
     pub last_transfer_tick: u64,
 }
+impl Belt {
+    pub(crate) fn from_hatches(output_hatch: HatchKey, input_hatch: HatchKey, buffer_length: usize) -> Belt {
+        Self {
+            belt_start: output_hatch,
+            belt_end: input_hatch,
+            buffer: vec![Item::invalid(); buffer_length],
+            last_transfer_tick: 0
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Hatch {

@@ -105,8 +105,8 @@ impl PipeNode {
         let bound = factory_manager.bind();
         let pipe = &bound.game.pipes[self.key];
 
-        let total_volume = pipe.buffer.iter().sum::<f32>();
-        let text = format!("volume: {total_volume}");
+        let total_volume = pipe.buffer.iter().sum::<i32>();
+        let text = format!("volume: {total_volume}, buffer size: {}", pipe.buffer.len());
         GString::from_str(&text).unwrap()
     }
 }

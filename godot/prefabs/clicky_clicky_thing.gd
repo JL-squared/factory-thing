@@ -17,8 +17,8 @@ func _on_body_entered(body: Node3D) -> void:
 	if (body is RigidBody3D):
 		(body as RigidBody3D).freeze = true
 		var tween = get_tree().create_tween()
-		tween.tween_property(body, "global_position", global_position, duration).set_trans(Tween.TRANS_SINE)
-		tween.tween_property(body, "global_basis", Basis.IDENTITY, duration).set_trans(Tween.TRANS_SINE)
+		tween.tween_property(body, "global_position", global_position, duration).set_trans(Tween.TRANS_SINE)		
+		tween.tween_property(body, "global_basis", global_basis, duration).set_trans(Tween.TRANS_SINE)
 		attached_rb = (body as RigidBody3D)
 		
 		if (player_hover_handler.rigidbody_hover_target == attached_rb):

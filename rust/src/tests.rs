@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod test_registry {
-    use crate::common::LoadUnit;
-use crate::common::Settings;
-use crate::registry::*;
+    use crate::Simulation;
+use crate::common::LoadUnit;
+    use crate::common::Settings;
+    use crate::registry::*;
     use crate::items::*;
 
     #[derive(Default)]
@@ -107,14 +108,14 @@ use crate::registry::*;
             }
         }
     }
+
+    pub type TestGame = Simulation<TestRegistry>;
 }
 
 #[cfg(test)]
 mod power_tests {
     use super::test_registry::*;
     use crate::*;
-
-    type TestGame = Simulation<TestRegistry>;
 
     #[test]
     fn simple_power() {
@@ -441,8 +442,38 @@ mod power_tests {
 mod sink_source_tests {
     use super::test_registry::*;
     use crate::{common::BufferSize, *};
+    
 
-    type TestGame = Simulation<TestRegistry>;
+    #[test]
+    fn test_belt_1() {
+        let mut sim = TestGame::testing();
+        sim.settings.belt_ticks_between_transfers = 0;
+        sim.settings.belt_transfer_size = 255;
+
+        let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON));
+        let sink = sim.add_sink();
+        
+        let belt = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
+
+        sim.tick();
+
+        assert!(sim.belts[belt].buffer[0].id == TestRegistry::CRUSHED_IRON);
+
+        for _ in 0..10 {
+            sim.tick();
+        }
+
+        dbg!(sim.belts[belt].buffer[9]);
+
+        // we expect belt to be fully saturated by now
+        assert!(sim.belts[belt].buffer.iter().all(|x| x.id == TestRegistry::CRUSHED_IRON));
+    }
+}
+
+#[cfg(test)]
+mod fluid_tests {
+    use super::test_registry::*;
+    use crate::{common::BufferSize, *};
     
 
     #[test]

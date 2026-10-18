@@ -178,9 +178,9 @@ impl<R: registry::Registry> Simulation<R> {
         self.fluid_buffers.insert(FluidBuffer {
             input,
             output,
-            fluid: 0f32,
             producer,
             consumer,
+            fluid: 0
         })
     }
 
@@ -272,12 +272,7 @@ impl<R: registry::Registry> Simulation<R> {
 
         let buffer_length = self.calculate_logical_belt_buffer_size(length);
 
-        self.belts.insert(Belt {
-            belt_start: output_hatch,
-            belt_end: input_hatch,
-            buffer: vec![Item::invalid(); buffer_length],
-            last_transfer_tick: 0
-        })
+        self.belts.insert(Belt::from_hatches(output_hatch, input_hatch, buffer_length))
     }
 
     pub fn add_pipe(&mut self, output_hatch: FluidHatchKey, input_hatch: FluidHatchKey, length: BufferSize) -> PipeKey {
@@ -286,11 +281,7 @@ impl<R: registry::Registry> Simulation<R> {
 
         let buffer_length = self.calculate_logical_pipe_buffer_size(length);
 
-        self.pipes.insert(Pipe {
-            buffer: vec![0f32; buffer_length],
-            pipe_start: output_hatch,
-            pipe_end: input_hatch,
-        })
+        self.pipes.insert(Pipe::from_hatches(output_hatch, input_hatch, buffer_length))
     }
 
     pub fn calculate_logical_buffer_size(length: BufferSize, world_scaling_factor: f32) -> usize {

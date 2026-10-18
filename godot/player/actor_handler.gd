@@ -14,6 +14,8 @@ var fst_selected_actor: Node3D = null
 var snd_selected_actor: Node3D = null
 var selected_actor_index = 0
 
+var toggled_actor_rotation_mode: bool = false
+
 func _process(delta: float) -> void:
 	# returns null if raycast misses
 	var possible_actor = null
@@ -107,10 +109,20 @@ func update_hologram_if_any() -> void:
 				if (raycaster.get_collider() != null):
 					hologram_actor.show()
 					hologram_actor.global_position = get_actor_position_from_raycast()
+					hologram_actor.global_basis = get_actor_basis_from_raycast()
 				pass
 
 func get_actor_position_from_raycast() -> Vector3:
 	return round(raycaster.get_collision_point() + Vector3(0, 0.5, 0))
+
+func get_actor_basis_from_raycast() -> Basis:
+	if (toggled_actor_rotation_mode):
+		var basis = Basis.looking_at(raycaster.get_collision_point() - raycaster.global_position);
+		basis = basis.scaled(Vector3(1, 0, 1))
+		basis.y = Vector3(0, 1, 0)
+		return basis.orthonormalized();
+	else:
+		return Basis.IDENTITY
 
 func get_looking_at_actor() -> Node3D:
 	if (raycaster.get_collider() != null):
@@ -158,6 +170,8 @@ func _input(event):
 			selected_actor_resource = actors[selected_actor_index]
 		else:
 			selected_actor_resource = null
+	elif event.is_action_pressed("toggle_actor_rotation"):
+		toggled_actor_rotation_mode = !toggled_actor_rotation_mode
 	if (actor_index_offset != 0):
 		selected_actor_index = posmod(selected_actor_index+actor_index_offset, len(actors))
 		if (selected_actor_resource != null):
@@ -277,7 +291,8 @@ func place_actor() -> void:
 			pass
 	
 	var node = selected_actor_resource.scene.instantiate() as Node3D
-	var position = Vector3.ZERO
+	var position: Vector3 = Vector3.ZERO
+	var basis: Basis = Basis.IDENTITY;
 		
 	match selected_actor_resource.type:
 		ActorResource.ActorType.Wire:
@@ -286,7 +301,8 @@ func place_actor() -> void:
 			var d = node_p1.distance_to(node_p2)
 			var pos = (node_p1 + node_p2) * 0.5
 			position = pos
-			node.look_at_from_position(pos, node_p1)
+			basis = Basis.looking_at(node_p1-pos);
+			
 			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
 			col_shape.shape = col_shape.shape.duplicate()
 			(col_shape.shape as BoxShape3D).size.z = d
@@ -307,7 +323,7 @@ func place_actor() -> void:
 			var d = node_p1.distance_to(node_p2)
 			var pos = (node_p1 + node_p2) * 0.5
 			position = pos
-			node.look_at_from_position(pos, node_p1)
+			basis = Basis.looking_at(node_p1-pos);
 			
 			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
 			col_shape.shape = col_shape.shape.duplicate()
@@ -329,7 +345,7 @@ func place_actor() -> void:
 			var d = node_p1.distance_to(node_p2)
 			var pos = (node_p1 + node_p2) * 0.5
 			position = pos
-			node.look_at_from_position(pos, node_p1)
+			basis = Basis.looking_at(node_p1-pos);
 			
 			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
 			col_shape.shape = col_shape.shape.duplicate()
@@ -347,9 +363,11 @@ func place_actor() -> void:
 			snd_selected_actor = null
 		_:
 			position = get_actor_position_from_raycast()
+			basis = get_actor_basis_from_raycast()
 	
 	get_tree().root.get_child(0).add_child(node)
 	node.global_position = position
+	node.global_basis = basis
 	
 	
 func remove_actor() -> void: 

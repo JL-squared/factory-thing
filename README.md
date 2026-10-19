@@ -125,6 +125,16 @@ In its simplest form, this will be akin to having multiple "variables" that you 
 ## Soft Body Shape Changing
 TODO
 
+## Machine Configuration based on COnnected Sub-Modules
+instead of configuring machine behaviour using a separate GUI / setting (like the arbitrary machine "config" integer in GregTech), we could instead define it based on what "modules" are connected to the machine:
+- ex: an "extrude" machine that takes in soft & malleable material and extrudes it to the different shapes:
+    - thick rod
+    - rod
+    - hollow rod
+    - square
+- instead of encoding this using a "mold" shape item in the recipe or simple configuration ID, we instead *install the correct mold shape* on the machine, which changes it semantics
+- we could generalize this to all crafting recipes, basically giving them a "installed modules on machine" part 
+
 ## Heat System
 ### Implementation
 Can be implemented using a voxel grid that represents the heat at specific cells in the world.

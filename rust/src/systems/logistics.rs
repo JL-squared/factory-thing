@@ -21,6 +21,18 @@ impl Belt {
             last_transfer_tick: 0
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.buffer.iter().all(|x| *x == Item::invalid())
+    }
+
+    pub fn is_saturated(&self) -> bool {
+        self.buffer.iter().all(|x| *x != Item::invalid())
+    }
+
+    pub fn first_item(&self) -> Item {
+        self.buffer[0]
+    }
 }
 
 #[derive(Debug)]

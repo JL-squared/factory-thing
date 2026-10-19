@@ -291,83 +291,34 @@ func place_actor() -> void:
 			pass
 	
 	var node = selected_actor_resource.scene.instantiate() as Node3D
-	var position: Vector3 = Vector3.ZERO
-	var basis: Basis = Basis.IDENTITY;
 		
 	match selected_actor_resource.type:
-		ActorResource.ActorType.Wire:
-			var node_p1 = (fst_selected_actor.get_node("Connector") as Node3D).global_position
-			var node_p2 = (snd_selected_actor.get_node("Connector") as Node3D).global_position
-			var d = node_p1.distance_to(node_p2)
-			var pos = (node_p1 + node_p2) * 0.5
-			position = pos
-			basis = Basis.looking_at(node_p1-pos);
-			
-			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
-			col_shape.shape = col_shape.shape.duplicate()
-			(col_shape.shape as BoxShape3D).size.z = d
-			
-			var mesh = node.get_node("MeshInstance3D") as Node3D 
-			mesh.scale.y = d * 0.5
-			
+		ActorResource.ActorType.Wire:			
 			var wire = node as WireNode
 			wire.pole_1_ref = fst_selected_actor as PoleNode
 			wire.pole_2_ref = snd_selected_actor as PoleNode
-			
 			
 			fst_selected_actor = null
 			snd_selected_actor = null
 		ActorResource.ActorType.Belt:
 			var node_p1 = (fst_selected_actor as Node3D).global_position
 			var node_p2 = (snd_selected_actor as Node3D).global_position
-			var d = node_p1.distance_to(node_p2)
-			var pos = (node_p1 + node_p2) * 0.5
-			position = pos
-			basis = Basis.looking_at(node_p1-pos);
-			
-			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
-			col_shape.shape = col_shape.shape.duplicate()
-			(col_shape.shape as BoxShape3D).size.z = d
-			
-			var mesh = node.get_node("Belt Visual") as Node3D 
-			mesh.scale.z = d * 0.5
-			
-			var belt = node as BeltNode
-			belt.belt_start_hatch_ref = fst_selected_actor as HatchNode
-			belt.belt_end_hatch_ref = snd_selected_actor as HatchNode
-			
 			
 			fst_selected_actor = null
 			snd_selected_actor = null
 		ActorResource.ActorType.Pipe:
 			var node_p1 = (fst_selected_actor as Node3D).global_position
 			var node_p2 = (snd_selected_actor as Node3D).global_position
-			var d = node_p1.distance_to(node_p2)
-			var pos = (node_p1 + node_p2) * 0.5
-			position = pos
-			basis = Basis.looking_at(node_p1-pos);
-			
-			var col_shape = node.get_node("StaticBody3D/CollisionShape3D") as CollisionShape3D
-			col_shape.shape = col_shape.shape.duplicate()
-			(col_shape.shape as CylinderShape3D).height = d
-			
-			var mesh = node.get_node("Pipe Visual") as Node3D 
-			mesh.scale.z = d * 0.5
-			
-			var pipe = node as PipeNode
-			pipe.pipe_start_hatch_ref = fst_selected_actor as FluidHatchNode
-			pipe.pipe_end_hatch_ref = snd_selected_actor as FluidHatchNode
-			
 			
 			fst_selected_actor = null
 			snd_selected_actor = null
-		_:
-			position = get_actor_position_from_raycast()
-			basis = get_actor_basis_from_raycast()
-	
+			
 	get_tree().root.get_child(0).add_child(node)
-	node.global_position = position
-	node.global_basis = basis
+	if (selected_actor_resource.type == ActorResource.ActorType.Normal):
+		node.global_position = get_actor_position_from_raycast()
+		node.global_basis = get_actor_basis_from_raycast()
+		
+	
 	
 	
 func remove_actor() -> void: 

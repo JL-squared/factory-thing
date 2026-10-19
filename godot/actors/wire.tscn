@@ -1,5 +1,7 @@
 [gd_scene format=3 uid="uid://qtdv0bu8jgh5"]
 
+[ext_resource type="Script" uid="uid://cumbxcfc00sml" path="res://actors/mesh_scaler.gd" id="1_a7825"]
+
 [sub_resource type="CylinderMesh" id="CylinderMesh_hxctv"]
 top_radius = 0.1
 bottom_radius = 0.1
@@ -9,7 +11,9 @@ size = Vector3(0.2, 0.2, 2)
 
 [node name="Wire" type="WireNode" unique_id=2021147452 groups=["actors"]]
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1626348118]
+[node name="Visual" type="Node3D" parent="." unique_id=1027213972]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Visual" unique_id=1626348118]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0)
 mesh = SubResource("CylinderMesh_hxctv")
 
@@ -17,3 +21,7 @@ mesh = SubResource("CylinderMesh_hxctv")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=592259171]
 shape = SubResource("BoxShape3D_hxctv")
+
+[node name="MeshScaler" type="Node" parent="." unique_id=1040134202]
+script = ExtResource("1_a7825")
+metadata/_custom_type_script = "uid://cumbxcfc00sml"

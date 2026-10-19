@@ -3,7 +3,6 @@ use godot::prelude::*;
 use godot::classes::*;
 
 pub mod nodes;
-pub mod fluid;
 pub mod handle;
 pub mod items;
 pub mod simulation;
@@ -12,6 +11,7 @@ mod registry;
 mod heat;
 mod systems;
 mod common;
+mod inventory;
 
 pub use systems::*;
 pub use handle::*;

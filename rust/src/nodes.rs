@@ -10,6 +10,7 @@ mod splitter;
 mod fluid_hatch;
 mod fluid_buffer;
 mod pipe;
+mod inventory;
 
 use godot::classes::*;
 use godot::prelude::*;

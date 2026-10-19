@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test_registry {
     use crate::Simulation;
-use crate::common::LoadUnit;
+    use crate::common::LoadUnit;
     use crate::common::Settings;
     use crate::registry::*;
     use crate::items::*;
@@ -453,20 +453,19 @@ mod sink_source_tests {
         let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON));
         let sink = sim.add_sink();
         
-        let belt = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
+        let key = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
 
+        assert!(sim.belts[key].is_empty());
         sim.tick();
-
-        assert!(sim.belts[belt].buffer[0].id == TestRegistry::CRUSHED_IRON);
+        assert!(!sim.belts[key].is_empty());
+        assert!(sim.belts[key].first_item().id == TestRegistry::CRUSHED_IRON);
 
         for _ in 0..10 {
             sim.tick();
         }
 
-        dbg!(sim.belts[belt].buffer[9]);
-
         // we expect belt to be fully saturated by now
-        assert!(sim.belts[belt].buffer.iter().all(|x| x.id == TestRegistry::CRUSHED_IRON));
+        assert!(sim.belts[key].is_saturated());
     }
 }
 

@@ -6,6 +6,7 @@ pub trait Registry: Default {
 
     fn registry_item(id: u8) -> &'static RegistryItem<Self::Data>;
     fn registry_recipe(string_id: &str) -> &'static Recipe;
+    fn registry_crafting_recipe(id: u8) -> Option<&'static CraftingRecipe> { None }
 
     fn stack_size(id: u8) -> u8 {
         Self::registry_item(id).stack_size
@@ -115,6 +116,10 @@ impl DefaultRegistry {
         &Self::SMELT_IRON_RECIPE,
         &Self::MINE_IRON_RECIPE,        
     ];
+
+    pub const CRAFTING_RECIPES: &[CraftingRecipe] = &[
+        CraftingRecipe { input: &[Item::one(Self::RAW_IRON_1)], output: &[Item::one(Self::IRON_INGOT)] }
+    ];
 }
 
 impl Registry for DefaultRegistry {
@@ -126,6 +131,10 @@ impl Registry for DefaultRegistry {
 
     fn registry_recipe(id: &str) -> &'static Recipe {
         &Self::RECIPES.iter().find(|x| x.id == id).unwrap()
+    }
+
+    fn registry_crafting_recipe(id: u8) -> Option<&'static CraftingRecipe> {
+        Some(&Self::CRAFTING_RECIPES[id as usize])
     }
 }
 
@@ -147,6 +156,12 @@ pub struct Recipe {
 }
 
 #[derive(Debug)]
+pub struct CraftingRecipe {
+    pub input: &'static [Item],
+    pub output: &'static [Item],
+}
+
+#[derive(Debug)]
 pub struct MinerRecipe {
     pub id: &'static str,
     pub name: &'static str,
@@ -154,3 +169,34 @@ pub struct MinerRecipe {
     pub ticks: u16,
     pub load: LoadUnit,
 }
+
+// (a,b) -> c
+// 8a -> 8x + 8y
+// 4x+4y+4b -> z + d'
+// 4b+z -> 1c
+
+// procedural resource
+/*
+resource::builder()
+    .add_raw_ore()
+    .add_crushed()
+    .add_dust()
+    .add_pulverized()
+    .add_aqeous()
+    .add_molten()
+    .implements_property(ItemProperty::Magnetized)
+    .implements_property(ItemProperty::Temperature)
+    .implements_property(ItemProperty::Malleability)
+    .implements_property(ItemProperty::Dirtyness)
+*/
+
+// procedural recipe builder
+/*
+// crush tree: raw ore -> crushed -> dust -> pulverized
+recipe::crush_recipe_builder()
+    .input( { resource : variant } )
+    .load(123)
+    .time(1s)
+    .output( { resource : next variant in "crush" tree } )
+*/
+

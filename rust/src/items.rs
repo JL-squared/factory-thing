@@ -11,8 +11,8 @@ impl Item {
         Self { id, count: 1 }
     }
 
-    pub fn full_stack<R: registry::Registry>(id: u8) -> Self {
-        Self { id, count: R::stack_size(id) }
+    pub fn full_stack<R: registry::Registry>(id: u8, registry: &R) -> Self {
+        Self { id, count: registry.stack_size(id) }
     }
 
     pub const fn new(id: u8, count: u8) -> Self {
@@ -35,7 +35,7 @@ impl Item {
     // `from` can be invalid
     // `to` can be invalid
     // this will do the transfer appropriately. modifies both
-    pub fn transfer_limited<R: registry::Registry>(src: &mut Item, dst: &mut Item, max_transfer_count: u8) {
+    pub fn transfer_limited<R: registry::Registry>(src: &mut Item, dst: &mut Item, max_transfer_count: u8, registry: &R) {
         if src.is_invalid() {
             return;
         }
@@ -46,7 +46,7 @@ impl Item {
         }
 
         // src ID is valid (but dst ID can be invalid), do transfer but STACK LIMITED
-        let stack_size = R::stack_size(src.id);
+        let stack_size = registry.stack_size(src.id);
 
         // remaining slots in DST that can be filled
         let remaining_slots = stack_size - if dst.is_invalid() { 0 } else { dst.count };
@@ -73,13 +73,13 @@ impl Item {
         }
     }
 
-    pub fn accumulate<R: registry::Registry>(&mut self, other: &Item) {
+    pub fn accumulate<R: registry::Registry>(&mut self, other: &Item, registry: &R) {
         assert!(self.is_invalid() || self.id == other.id);
 
         if !self.is_invalid() {
             let checked = self.count.checked_add(other.count);
             assert!(checked.is_some(), "accumulation count overflow integer type");
-            let stack_size = R::stack_size(self.id);
+            let stack_size = registry.stack_size(self.id);
             assert!(matches!(checked, Some(x) if x <= stack_size), "accumulation count overflow stack size");
         }
 
@@ -87,25 +87,25 @@ impl Item {
         self.count += other.count;
     }
 
-    pub fn can_accumulate_from<R: registry::Registry>(&self, other: &Item) -> bool {
+    pub fn can_accumulate_from<R: registry::Registry>(&self, other: &Item, registry: &R) -> bool {
         if other.is_invalid() {
             return false;
         }
 
         if self.is_invalid() {
             true
-        } else if self.id == other.id && self.count.checked_add(other.count).map(|res| res <= R::stack_size(self.id)).unwrap_or_default() {
+        } else if self.id == other.id && self.count.checked_add(other.count).map(|res| res <= registry.stack_size(self.id)).unwrap_or_default() {
             true
         } else {
             false
         }
     }
 
-    pub fn display<R: registry::Registry>(&self) -> String {
+    pub fn display<R: registry::Registry>(&self, registry: &R) -> String {
         if self.is_invalid() {
             "Invalid".to_string()
         } else {
-            format!("\"{}\" ({})", R::name(self.id), self.count)
+            format!("\"{}\" ({})", registry.name(self.id), self.count)
         }
     }
 
@@ -165,14 +165,20 @@ mod item_tests {
     impl Registry for ItemTestRegistry {
         type Data = ();
 
-        fn registry_item(id: u8) -> &'static RegistryItem<()> {
+        fn registry_item(&self, id: u8) -> &RegistryItem<()> {
             &Self::ITEMS[id as usize]
         }
         
-        fn registry_recipe(string_id: &str) -> &'static registry::Recipe {
+        fn registry_recipe(&self, string_id: &str) -> &registry::Recipe {
+            todo!()
+        }
+        
+        fn registry_miner_recipe(&self, string_id: &str) -> &registry::MinerRecipe {
             todo!()
         }
     }
+
+    static REGISTRY: ItemTestRegistry = ItemTestRegistry;
 
 
     #[test]
@@ -219,16 +225,16 @@ mod item_tests {
     fn accumulate_item() {
         let mut item = Item::new(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255, 10);
         assert_eq!(item.count, 10);
-        item.accumulate::<ItemTestRegistry>(&Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255));
+        item.accumulate::<ItemTestRegistry>(&Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255), &REGISTRY);
         assert_eq!(item.count, 11);
     }
 
     #[test]
     #[should_panic]
     fn accumulate_item_stack_limit() {
-        let mut item = Item::full_stack::<ItemTestRegistry>(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
-        assert_eq!(item.count, ItemTestRegistry::stack_size(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255));
-        item.accumulate::<ItemTestRegistry>(&Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255));
+        let mut item = Item::full_stack::<ItemTestRegistry>(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255, &REGISTRY);
+        assert_eq!(item.count, REGISTRY.stack_size(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255));
+        item.accumulate::<ItemTestRegistry>(&Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255), &REGISTRY);
     }
 
     #[test]
@@ -238,7 +244,7 @@ mod item_tests {
         assert!(src.is_invalid());
         assert!(dst.is_invalid());
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert!(src.is_invalid());
         assert!(dst.is_invalid());
@@ -251,7 +257,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert!(dst.is_invalid());
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert_eq!(dst.count, 10);
         assert!(src.is_invalid());
@@ -264,7 +270,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
@@ -277,7 +283,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert!(src.is_invalid());
         assert_eq!(dst.count, 25);
@@ -290,7 +296,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert!(dst.is_invalid());
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2, &REGISTRY);
         
         assert_eq!(src.count, 8);
         assert_eq!(src.id, ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
@@ -305,7 +311,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2, &REGISTRY);
         
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
@@ -318,7 +324,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 2, &REGISTRY);
         
         assert_eq!(src.count, 8);
         assert_eq!(dst.count, 17);
@@ -331,7 +337,7 @@ mod item_tests {
         assert_eq!(src.count, 16);
         assert!(dst.is_invalid());
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert!(src.is_invalid());
         assert_eq!(dst.count, 16);
@@ -344,7 +350,7 @@ mod item_tests {
         assert_eq!(src.count, 16);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert_eq!(src.count, 16);
         assert_eq!(dst.count, 15);
@@ -357,7 +363,7 @@ mod item_tests {
         assert_eq!(src.count, 10);
         assert_eq!(dst.count, 15);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert_eq!(src.count, 9);
         assert_eq!(dst.count, 16);
@@ -370,7 +376,7 @@ mod item_tests {
         assert_eq!(src.count, 16);
         assert_eq!(dst.count, 16);
         
-        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255);
+        Item::transfer_limited::<ItemTestRegistry>(&mut src, &mut dst, 255, &REGISTRY);
         
         assert_eq!(src.count, 16);
         assert_eq!(dst.count, 16);

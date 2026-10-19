@@ -191,6 +191,7 @@ pub fn handle_wire_damage(wires: &mut SlotMap<WireKey, Wire>, settings: &mut Set
             }
         }
 
+        // this is safe, because the Godot side will automatically destroy the appropriate wire nodes from the world if they have invalid keys to the simulation wires
         wires.retain(|_, w| w.damage < u8::MAX);
     }
 }

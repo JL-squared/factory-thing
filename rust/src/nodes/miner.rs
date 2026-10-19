@@ -32,8 +32,7 @@ impl INode3D for MinerNode {
         pole.owned = true;
         self.pole_key = pole.key;
         
-        const RECIPE: &MinerRecipe = &MinerRecipe { id: "", name: "", output: Item::new(DefaultRegistry::RAW_IRON_1, 1), ticks: 128, load: 30 };
-        self.key = bound.game.add_miner_with_pole(RECIPE, pole.key);
+        self.key = bound.game.add_miner_with_pole("adfadf".to_owned(), pole.key);
 
         if let Ok(mut hatch_node) = self.base().find_child("Output Hatch").unwrap().try_cast::<HatchNode>() {
             let mut node = hatch_node.bind_mut();
@@ -79,7 +78,8 @@ impl MinerNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.miners[self.key];
-        let recipe = machine.recipe.unwrap();
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_miner_recipe(machine.recipe.as_ref().unwrap());
         
         let string = format!("machine. recipe: '{}'. status: {:?}", recipe.id, machine.status);
         
@@ -108,7 +108,8 @@ impl MinerNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.miners[self.key];
-        let recipe = machine.recipe.unwrap();
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_miner_recipe(machine.recipe.as_ref().unwrap());
 
         let progress = match &machine.progress {
             Some(progress) => {
@@ -133,9 +134,10 @@ impl MinerNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.miners[self.key];
-        let recipe = machine.recipe.unwrap();
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_miner_recipe(machine.recipe.as_ref().unwrap());
 
-        let string = format!("{} EU/t => {} ({}t)", recipe.load, recipe.output.display::<DefaultRegistry>(), recipe.ticks);
+        let string = format!("{} EU/t => {} ({}t)", recipe.load, recipe.output.display::<DefaultRegistry>(registry), recipe.ticks);
         
         GString::from_str(&string).unwrap()
     }

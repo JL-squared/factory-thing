@@ -74,11 +74,16 @@ mod test_registry {
     impl Registry for TestRegistry {
         type Data = (); 
 
-        fn registry_item(id: u8) -> &'static RegistryItem<()> {
+        fn registry_item(&self, id: u8) -> &RegistryItem<()> {
             &Self::ITEMS[id as usize]
         }
 
-        fn registry_recipe(string_id: &str) -> &'static Recipe {
+        fn registry_recipe(&self, string_id: &str) -> &Recipe {
+            static RECIPES: &[Recipe] = &[TestRegistry::CRUSH_IRON_RECIPE, TestRegistry::CRUSH_IRON_MORE_RECIPE, TestRegistry::SMELT_IRON_RECIPE];
+            RECIPES.iter().find(|recipe| recipe.id == string_id).expect(&format!("recipe {string_id} not in registry"))
+        }
+        
+        fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe {
             todo!()
         }
     }
@@ -379,7 +384,7 @@ mod power_tests {
     fn no_power_machine_no_items() {
         let mut game = Simulation::default();
         let a = game.add_generator(10);
-        let (_, b) = game.add_machine(&TestRegistry::CRUSH_IRON_RECIPE);
+        let (_, b) = game.add_machine("crush_iron".to_string());
         
         let wire = game.add_wire(a,b);
         
@@ -391,10 +396,10 @@ mod power_tests {
     fn no_power_machine_halt_reason_output_full() {
         let mut game = Simulation::default();
         let a = game.add_generator(10);
-        let (m, b) = game.add_machine(&TestRegistry::CRUSH_IRON_RECIPE);
+        let (m, b) = game.add_machine("crush_iron".to_string());
         
-        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1);
-        *game.get_output_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON);
+        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
+        *game.get_output_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON, &game.registry);
 
 
         let wire = game.add_wire(a,b);
@@ -407,9 +412,9 @@ mod power_tests {
     fn no_power_machine_halt_reason_output_type_mismatch() {
         let mut game = Simulation::default();
         let a = game.add_generator(10);
-        let (m, b) = game.add_machine(&TestRegistry::CRUSH_IRON_RECIPE);
+        let (m, b) = game.add_machine("crush_iron".to_string());
         
-        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1);
+        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
         *game.get_output_hatch_mut(m, 0) = Item::one(TestRegistry::RAW_IRON_1);
 
 
@@ -450,7 +455,7 @@ mod sink_source_tests {
         sim.settings.belt_ticks_between_transfers = 0;
         sim.settings.belt_transfer_size = 255;
 
-        let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON));
+        let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON, &sim.registry));
         let sink = sim.add_sink();
         
         let key = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
@@ -473,32 +478,6 @@ mod sink_source_tests {
 mod fluid_tests {
     use super::test_registry::*;
     use crate::{common::BufferSize, *};
-    
-
-    #[test]
-    fn test_belt_1() {
-        let mut sim = TestGame::testing();
-        sim.settings.belt_ticks_between_transfers = 0;
-        sim.settings.belt_transfer_size = 255;
-
-        let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON));
-        let sink = sim.add_sink();
-        
-        let belt = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
-
-        sim.tick();
-
-        assert!(sim.belts[belt].buffer[0].id == TestRegistry::CRUSHED_IRON);
-
-        for _ in 0..10 {
-            sim.tick();
-        }
-
-        dbg!(sim.belts[belt].buffer[9]);
-
-        // we expect belt to be fully saturated by now
-        assert!(sim.belts[belt].buffer.iter().all(|x| x.id == TestRegistry::CRUSHED_IRON));
-    }
 }
 
 mod tests {

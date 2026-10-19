@@ -76,6 +76,7 @@ impl SiloNode {
         let root = window.get_child(0).unwrap();
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
+        let registry = &bound.game.registry;
 
         let silo = &bound.game.silos[self.key];
 
@@ -88,7 +89,7 @@ impl SiloNode {
 
         let mut str = String::new();
         for (id, count) in total {
-            let name = DefaultRegistry::name(id);
+            let name = registry.name(id);
             str += &format!("{name}x{count},");
         }
 

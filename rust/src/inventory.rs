@@ -16,8 +16,8 @@ impl Inventory {
         self.items.iter().any(|item| item.id == crafting_input.id && item.count >= crafting_input.count)
     }
 
-    fn try_craft_once<R: Registry>(&mut self, crafting_recipe_id: u8) {
-        if let Some(recipe) = R::registry_crafting_recipe(crafting_recipe_id) {
+    fn try_craft_once<R: Registry>(&mut self, crafting_recipe_id: u8, registry: &R) {
+        if let Some(recipe) = registry.registry_crafting_recipe(crafting_recipe_id) {
             for input in recipe.input {
                 if self.has_crafting_requirement(input) {
                     // TODO crafting shit

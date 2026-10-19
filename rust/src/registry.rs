@@ -1,19 +1,22 @@
+use std::sync::LazyLock;
+
 use crate::{Item};
 use crate::common::*;
 
 pub trait Registry: Default {
     type Data: 'static;
 
-    fn registry_item(id: u8) -> &'static RegistryItem<Self::Data>;
-    fn registry_recipe(string_id: &str) -> &'static Recipe;
-    fn registry_crafting_recipe(id: u8) -> Option<&'static CraftingRecipe> { None }
+    fn registry_item(&self, id: u8) -> &RegistryItem<Self::Data>;
+    fn registry_recipe(&self, string_id: &str) -> &Recipe;
+    fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe;
+    fn registry_crafting_recipe(&self, id: u8) -> Option<&CraftingRecipe> { None }
 
-    fn stack_size(id: u8) -> u8 {
-        Self::registry_item(id).stack_size
+    fn stack_size(&self, id: u8) -> u8 {
+        Self::registry_item(self, id).stack_size
     }
 
-    fn name(id: u8) -> &'static str {
-        Self::registry_item(id).name
+    fn name(&self, id: u8) -> &str {
+        Self::registry_item(self, id).name
     }
 }
 
@@ -120,20 +123,27 @@ impl DefaultRegistry {
     pub const CRAFTING_RECIPES: &[CraftingRecipe] = &[
         CraftingRecipe { input: &[Item::one(Self::RAW_IRON_1)], output: &[Item::one(Self::IRON_INGOT)] }
     ];
+
+
+    pub const MINER_RECIPE: &MinerRecipe = &MinerRecipe { id: "", name: "", output: Item::new(DefaultRegistry::RAW_IRON_1, 1), ticks: 128, load: 30 };
 }
 
 impl Registry for DefaultRegistry {
     type Data = DefaultRegistryItemData;
 
-    fn registry_item(id: u8) -> &'static RegistryItem<DefaultRegistryItemData> {
+    fn registry_item(&self, id: u8) -> &RegistryItem<DefaultRegistryItemData> {
         &Self::ITEMS[id as usize]
     }
 
-    fn registry_recipe(id: &str) -> &'static Recipe {
+    fn registry_recipe(&self, id: &str) -> &Recipe {
         &Self::RECIPES.iter().find(|x| x.id == id).unwrap()
     }
 
-    fn registry_crafting_recipe(id: u8) -> Option<&'static CraftingRecipe> {
+    fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe {
+        Self::MINER_RECIPE
+    }
+
+    fn registry_crafting_recipe(&self, id: u8) -> Option<&CraftingRecipe> {
         Some(&Self::CRAFTING_RECIPES[id as usize])
     }
 }

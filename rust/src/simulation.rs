@@ -55,6 +55,7 @@ impl<R: registry::Registry> Simulation<R> {
             miners,
             splitters,
             rng,
+            registry,
             ..
         } = self;
 
@@ -75,14 +76,14 @@ impl<R: registry::Registry> Simulation<R> {
         }
 
         // doing belt logic before machine logic fixes "sigle-tick idle" issue when belt transfer speed === machine recipe tick speed (halting on input materials) 
-        handle_belts::<R>(belts, hatches, tick, settings);
+        handle_belts::<R>(belts, hatches, tick, settings, &registry);
         handle_pipes::<R>(pipes, fluid_hatches, tick, settings);
 
-        handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng);
-        handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng);
+        handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng, &registry);
+        handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng, &registry);
 
-        handle_silos::<R>(hatches, silos, settings);
-        handle_splitters::<R>(hatches, splitters, settings);
+        handle_silos::<R>(hatches, silos, settings, &registry);
+        handle_splitters::<R>(hatches, splitters, settings, &registry);
         handle_buffers::<R>(fluid_hatches, fluid_buffers, settings);
 
         *tick += 1;
@@ -90,12 +91,12 @@ impl<R: registry::Registry> Simulation<R> {
 }
 
 impl<R: registry::Registry> Simulation<R> {
-    pub fn add_miner_with_pole(&mut self, recipe: &'static MinerRecipe, pole_key: PoleKey) -> MinerKey {
+    pub fn add_miner_with_pole(&mut self, recipe: String, pole_key: PoleKey) -> MinerKey {
         self.poles[pole_key] = Pole::Consumer { target_load: 0, current_load: 0 };
         
         let miner = Miner {
             output: self.hatches.insert(Hatch::empty()),
-            recipe: Some(&recipe),
+            recipe: Some(recipe),
             progress: None,
             pole: Some(pole_key),
             ..Default::default()
@@ -104,7 +105,7 @@ impl<R: registry::Registry> Simulation<R> {
         self.miners.insert(miner)
     }
 
-    pub fn add_machine_with_pole(&mut self, recipe: &'static Recipe, pole_key: PoleKey, input_hatches: u32, output_hatches: u32) -> MachineKey {
+    pub fn add_machine_with_pole(&mut self, recipe: String, pole_key: PoleKey, input_hatches: u32, output_hatches: u32) -> MachineKey {
         self.poles[pole_key] = Pole::Consumer { target_load: 0, current_load: 0 };
 
         let input = (0..input_hatches).map(|_| self.hatches.insert(Hatch::empty())).collect::<Vec<_>>();
@@ -113,7 +114,7 @@ impl<R: registry::Registry> Simulation<R> {
         let machine = Machine {
             input,
             output,
-            recipe: Some(&recipe),
+            recipe: Some(recipe),
             progress: None,
             pole: Some(pole_key),
             ..Default::default()
@@ -122,7 +123,7 @@ impl<R: registry::Registry> Simulation<R> {
         self.machines.insert(machine)
     }
 
-    pub fn add_machine(&mut self, recipe: &'static Recipe) -> (MachineKey, PoleKey) {
+    pub fn add_machine(&mut self, recipe: String) -> (MachineKey, PoleKey) {
         let pole_id = self.poles.insert(Pole::Consumer { target_load: 0, current_load: 0 });
 
         // TODO: scale number of hatches with required recipe I/O
@@ -132,7 +133,7 @@ impl<R: registry::Registry> Simulation<R> {
         let machine = Machine {
             input: vec![input],
             output: vec![output],
-            recipe: Some(&recipe),
+            recipe: Some(recipe),
             progress: None,
             pole: Some(pole_id),
             ..Default::default()

@@ -36,16 +36,14 @@ impl INode3D for MachineNode {
         let root = window.get_child(0).unwrap();
         let mut factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let mut bound = factory_manager.bind_mut();
-
+        
         let mut _pole = self.base().get_node_as::<PoleNode>("Power Pole");
         let mut pole = _pole.bind_mut();
         pole.owned = true;
         self.pole_key = pole.key;
 
-        let id = self.recipe_name_id.to_string();
-        let x = DefaultRegistry::registry_recipe(&id);
-        
-        self.key = bound.game.add_machine_with_pole(&x, pole.key, self.input_hatch_count, self.output_hatch_count);
+        let id = self.recipe_name_id.to_string();        
+        self.key = bound.game.add_machine_with_pole(id, pole.key, self.input_hatch_count, self.output_hatch_count);
 
         for child in self.base().get_children().iter_shared() {
             if let Ok(mut hatch_node) = child.try_cast::<HatchNode>() {
@@ -99,7 +97,9 @@ impl MachineNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.machines[self.key];
-        let recipe = machine.recipe.unwrap();
+
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
         
         let string = format!("machine. recipe: '{}'. status: {:?}", recipe.id, machine.status);
         
@@ -128,7 +128,9 @@ impl MachineNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.machines[self.key];
-        let recipe = machine.recipe.unwrap();
+
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
 
         let progress = match &machine.progress {
             Some(progress) => {
@@ -153,9 +155,12 @@ impl MachineNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let machine = &bound.game.machines[self.key];
-        let recipe = machine.recipe.unwrap();
 
-        let string = format!("{} + {} EU/t => {} ({}t)", recipe.input[0].display::<DefaultRegistry>(), recipe.load, recipe.output[0].display::<DefaultRegistry>(), recipe.ticks);
+        let registry = &bound.game.registry;
+        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
+
+
+        let string = format!("{} + {} EU/t => {} ({}t)", recipe.input[0].display::<DefaultRegistry>(registry), recipe.load, recipe.output[0].display::<DefaultRegistry>(registry), recipe.ticks);
         
         GString::from_str(&string).unwrap()
     }

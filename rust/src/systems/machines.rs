@@ -36,7 +36,7 @@ pub enum MachineStatus {
 pub struct Machine {
     pub input: Vec<HatchKey>,
     pub output: Vec<HatchKey>,
-    pub recipe: Option<&'static Recipe>,
+    pub recipe: Option<String>,
     pub progress: Option<Progress>,
     pub status: MachineStatus,
     pub pole: Option<PoleKey>,
@@ -47,7 +47,7 @@ pub struct Machine {
 #[derive(Default, Debug)]
 pub struct Miner {
     pub output: HatchKey,
-    pub recipe: Option<&'static MinerRecipe>,
+    pub recipe: Option<String>,
     pub progress: Option<Progress>,
     pub status: MachineStatus,
     pub pole: Option<PoleKey>,
@@ -80,8 +80,8 @@ pub trait GenericMachine {
     type Key: slotmap::Key;
     type Recipe: GenericRecipe;
 
-    fn get_commons<'a>(&'a mut self) -> Commons<'a, Self::Recipe>;
-    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng) {}
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe>;
+    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
 }
 
 impl GenericRecipe for MinerRecipe {
@@ -107,9 +107,9 @@ impl GenericMachine for Miner {
     type Recipe = MinerRecipe;
 
 
-    fn get_commons<'a>(&'a mut self) -> Commons<'a, Self::Recipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe> {
         Commons {
-            recipe: self.recipe.unwrap(),
+            recipe: registry.registry_miner_recipe(self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
             internal_power_buffer: &mut self.internal_power_buffer,
             status: &mut self.status,
@@ -120,10 +120,10 @@ impl GenericMachine for Miner {
         }
     }
 
-    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng) {
+    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         if rng.bool() {
             let buffer = &mut hatches[outputs[0]].buffer;
-            buffer.accumulate::<R>(&recipe.output);
+            buffer.accumulate::<R>(&recipe.output, registry);
         }
     }
 }
@@ -153,9 +153,9 @@ impl GenericMachine for Machine {
     type Recipe = Recipe;
 
 
-    fn get_commons<'a>(&'a mut self) -> Commons<'a, Self::Recipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe> {
         Commons {
-            recipe: self.recipe.unwrap(),
+            recipe: registry.registry_recipe(&self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
             internal_power_buffer: &mut self.internal_power_buffer,
             status: &mut self.status,
@@ -166,7 +166,7 @@ impl GenericMachine for Machine {
         }
     }
 
-    fn do_thing_machine<R: registry::Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng) {
+    fn do_thing_machine<R: registry::Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         // machine finished the recipe (remaining ticks is zero, but no need to update it, as we invalidate `progress` anyways)
         // take items from input hatches
         for (recipe_input, hatch_input) in
@@ -181,13 +181,13 @@ impl GenericMachine for Machine {
             recipe.output.iter().zip(outputs.iter())
         {
             let buffer = &mut hatches[*hatch_output].buffer;
-            buffer.accumulate::<R>(recipe_output);
+            buffer.accumulate::<R>(recipe_output, registry);
         }
     }
 }
 
 
-pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &mut SlotMap<M::Key, M>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng) {
+pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &mut SlotMap<M::Key, M>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng, registry: &R) {
     for machine in machines.values_mut() {
         let Commons {
             recipe,
@@ -198,7 +198,7 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
             progress,
             inputs,
             outputs
-        } = machine.get_commons();
+        } = machine.get_commons(registry);
 
         // set the machine's consumer pole to enabled state
         let given_load = match poles[consumer_pole_id] {
@@ -246,7 +246,7 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
                 valid_progress.ticks_remaining = non_zero;
             } else {
                 // the thing that the machine does at the end of progress
-                M::do_thing_machine::<R>(recipe, &inputs, &outputs, hatches, rng);
+                M::do_thing_machine::<R>(recipe, &inputs, &outputs, hatches, rng, registry);
 
                 // reset machine progress
                 progress.take().unwrap();
@@ -274,7 +274,7 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
 
                         // if the item is the same, must make sure that we have enough space in the hatch to place it 
                         let same_id = buffer.id == recipe_output_item.id;
-                        let stack_size = R::stack_size(buffer.id);
+                        let stack_size = registry.stack_size(buffer.id);
 
                         // this CAN overflow if stack size is at MAX
                         // if we know it will overflow, then we cannot process the recipe

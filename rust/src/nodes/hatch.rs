@@ -40,7 +40,8 @@ impl HatchNode {
         let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
         let bound = factory_manager.bind();
         let item = bound.game.hatches[self.key].buffer;
-        let item_text = item.display::<DefaultRegistry>();
+        let registry = &bound.game.registry;
+        let item_text = item.display::<DefaultRegistry>(registry);
         let text = format!("id: {:?}. {}", self.key, item_text);
 
         GString::from_str(&text).unwrap()

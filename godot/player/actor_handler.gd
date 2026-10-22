@@ -48,14 +48,12 @@ func _process(delta: float) -> void:
 	update_hologram_if_any()
 		
 func update_hologram_if_any() -> void:
-	return;
 	if (hologram_actor != null):
 		hologram_actor.hide()
 		
 		if (selected_actor_resource == null):
 			return;
 			
-		# only update global position when we are not a wire or belt (because those are automatically handled)
 		var selected_actor_type = selected_actor_resource.type
 		match selected_actor_type:
 			ActorResource.ActorType.Wire:					
@@ -69,11 +67,7 @@ func update_hologram_if_any() -> void:
 						if (parent is PoleNode and parent != fst_selected_actor):
 							node_p2 = (parent.get_node("Connector") as Node3D).global_position
 					
-					var d = node_p1.distance_to(node_p2)
-					var pos = (node_p1 + node_p2) * 0.5
-					hologram_actor.look_at_from_position(pos, node_p1)
-					var mesh = hologram_actor.get_node("MeshInstance3D") as Node3D 
-					mesh.scale.y = d * 0.5
+					(hologram_actor.find_child("MeshScaler") as MeshScaler).update_data(node_p1, node_p2);
 			ActorResource.ActorType.Belt:					
 				if (fst_selected_actor != null):
 					hologram_actor.show()
@@ -85,11 +79,7 @@ func update_hologram_if_any() -> void:
 						if (parent is HatchNode and parent != fst_selected_actor):
 							node_p2 = (parent as Node3D).global_position
 					
-					var d = node_p1.distance_to(node_p2)
-					var pos = (node_p1 + node_p2) * 0.5
-					hologram_actor.look_at_from_position(pos, node_p1)
-					var mesh = hologram_actor.get_node("Belt Visual") as Node3D 
-					mesh.scale.z = d * 0.5
+					(hologram_actor.find_child("MeshScaler") as MeshScaler).update_data(node_p1, node_p2);
 			ActorResource.ActorType.Pipe:					
 				if (fst_selected_actor != null):
 					hologram_actor.show()
@@ -101,11 +91,7 @@ func update_hologram_if_any() -> void:
 						if (parent is FluidHatchNode and parent != fst_selected_actor):
 							node_p2 = (parent as Node3D).global_position
 					
-					var d = node_p1.distance_to(node_p2)
-					var pos = (node_p1 + node_p2) * 0.5
-					hologram_actor.look_at_from_position(pos, node_p1)
-					var mesh = hologram_actor.get_node("Pipe Visual") as Node3D 
-					mesh.scale.z = d * 0.5
+					(hologram_actor.find_child("MeshScaler") as MeshScaler).update_data(node_p1, node_p2);
 			_:
 				if (raycaster.get_collider() != null):
 					hologram_actor.show()

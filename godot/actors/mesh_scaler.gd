@@ -32,6 +32,10 @@ func _ready() -> void:
 		update_data(a, b)
 
 func update_data(node_p1: Vector3, node_p2: Vector3):
+	if (node_p1 == node_p2):
+		print("p1,p2 are same position, cannot re-scale");
+		return;
+	
 	var d = node_p1.distance_to(node_p2)
 	var pos = (node_p1 + node_p2) * 0.5
 	get_parent().global_position = pos;

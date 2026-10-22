@@ -109,8 +109,8 @@ impl INode3D for BeltNode {
                 let mut item_node = bound.item_prefab.instantiate().unwrap();
 
 
-                let model_node = bound.godot_item_models_registry[&elem.id].instantiate().unwrap();
-                let material = &bound.godot_item_materials_registry[&elem.id];
+                let model_node = bound.godot_item_models_registry.get(&elem.id).expect("could not find godot item model in registry").instantiate().unwrap();
+                let material = bound.godot_item_materials_registry.get(&elem.id).expect("could not find godot item material in registry");
                 
                 
                 for child in model_node.get_children().iter_shared() {

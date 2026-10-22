@@ -26,7 +26,7 @@ func _ready() -> void:
 		var pipe = parent as PipeNode
 		if (not pipe.hologram):
 			a = pipe.pipe_start_hatch_ref.global_position
-			b = pipe.pipe_start_hatch_ref.global_position	
+			b = pipe.pipe_end_hatch_ref.global_position	
 			
 	if (a != Vector3.ZERO and b != Vector3.ZERO):
 		update_data(a, b)

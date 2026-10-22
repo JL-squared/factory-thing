@@ -32,7 +32,7 @@ impl INode3D for MinerNode {
         pole.owned = true;
         self.pole_key = pole.key;
         
-        self.key = bound.game.add_miner_with_pole("adfadf".to_owned(), pole.key);
+        self.key = bound.game.add_miner_with_pole("mine_iron".to_owned(), pole.key);
 
         if let Ok(mut hatch_node) = self.base().find_child("Output Hatch").unwrap().try_cast::<HatchNode>() {
             let mut node = hatch_node.bind_mut();

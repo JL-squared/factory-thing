@@ -11,7 +11,6 @@ mod registry;
 mod heat;
 mod systems;
 mod common;
-mod inventory;
 
 pub use systems::*;
 pub use handle::*;
@@ -22,6 +21,7 @@ use crate::nodes::FluidHatchNode;
 use crate::nodes::HatchNode;
 use crate::nodes::PoleNode;
 use crate::registry::DefaultRegistry;
+use crate::registry::Registry;
 
 struct MyExtension;
 
@@ -55,7 +55,9 @@ impl INode3D for FactoryManager {
     }
 
     fn enter_tree(&mut self) {
-        for (index, item) in DefaultRegistry::ITEMS.iter().enumerate() {
+        let items = self.game.registry.list_registry_items();
+
+        for (index, item) in items.enumerate() {
             if index != 0 {
                 self.godot_item_models_registry.insert(index as u8, load::<PackedScene>(item.data.item_model_resource));
                 self.godot_item_materials_registry.insert(index as u8, load::<Material>(item.data.item_material_resource));

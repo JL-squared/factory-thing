@@ -105,10 +105,11 @@ mod test_registry {
     }
 
 
-    impl<R: Registry> crate::simulation::Simulation<R> {
+    impl crate::simulation::Simulation<TestRegistry> {
         pub fn testing() -> Self {
             Self {
                 settings: Settings::testing(),
+                registry: TestRegistry::default(),
                 ..Default::default()
             }
         }

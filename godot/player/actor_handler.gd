@@ -48,6 +48,7 @@ func _process(delta: float) -> void:
 	update_hologram_if_any()
 		
 func update_hologram_if_any() -> void:
+	return;
 	if (hologram_actor != null):
 		hologram_actor.hide()
 		
@@ -301,14 +302,16 @@ func place_actor() -> void:
 			fst_selected_actor = null
 			snd_selected_actor = null
 		ActorResource.ActorType.Belt:
-			var node_p1 = (fst_selected_actor as Node3D).global_position
-			var node_p2 = (snd_selected_actor as Node3D).global_position
+			var belt = node as BeltNode
+			belt.belt_start_hatch_ref = fst_selected_actor as HatchNode
+			belt.belt_end_hatch_ref = snd_selected_actor as HatchNode
 			
 			fst_selected_actor = null
 			snd_selected_actor = null
 		ActorResource.ActorType.Pipe:
-			var node_p1 = (fst_selected_actor as Node3D).global_position
-			var node_p2 = (snd_selected_actor as Node3D).global_position
+			var pipe = node as PipeNode
+			pipe.pipe_start_hatch_ref = fst_selected_actor as FluidHatchNode
+			pipe.pipe_end_hatch_ref = snd_selected_actor as FluidHatchNode			
 			
 			fst_selected_actor = null
 			snd_selected_actor = null

@@ -46,6 +46,14 @@ There could be a graph that dictates power loss in relation to power frequency. 
 
 Nothing states that the "optimal frequency" is static. It can change with other parameters. For example, there could be an optimal frequency for a network of a specific size, but not for other sizes (something something similar to impedence matching)
 
+## Fluids
+fluids are quite tricky. you'd want them to lead to interesting gameplay, but you wouldn't want them to be annoying and obscure to understand (satisfactory).
+In the previous implementation of this prototype, we used a realistic fluid propagation system that led to the following cool stuff:
+- fluids take time to propagate in pipes
+- fluid propagation decreases over distance
+- fluid pressure shenanigans (removing a pipe or closing a valve leads to a "ripple" effect to the rest of the system)
+
+
 # Ideas
 ## Multiblocks / Modular Components
 ### Building

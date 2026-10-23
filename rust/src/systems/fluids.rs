@@ -89,6 +89,12 @@ pub struct FluidBuffer {
     pub fluid: FluidType,
 }
 
+
+const MAX_TRANSFER_FROM_A_TO_B: i32 = 10000;
+const MAX_VOLUME_PER_SLICE: i32 = 10000;
+const PRODUCER_BUFFER_MAX_CAPACITY: i32 = 10000;
+
+
 pub fn handle_buffers<R: Registry>(fluid_hatches: &mut SlotMap<FluidHatchKey, FluidHatch>, fluid_buffer: &mut SlotMap<FluidBufferKey, FluidBuffer>, settings: &Settings) {
     for fluid_buffer in fluid_buffer.values_mut() {
         let mut vel = VelocityType::default();
@@ -96,11 +102,12 @@ pub fn handle_buffers<R: Registry>(fluid_hatches: &mut SlotMap<FluidHatchKey, Fl
         equalize_hatch(fluid_hatches, fluid_buffer.output, &mut fluid_buffer.fluid, &mut vel, settings);
 
         if fluid_buffer.consumer {
+            dbg!(fluid_buffer.fluid);
             fluid_buffer.fluid = 0;
         }
         
         if fluid_buffer.producer {
-            fluid_buffer.fluid = 1000;
+            fluid_buffer.fluid = PRODUCER_BUFFER_MAX_CAPACITY;
         }
     }
 }
@@ -116,6 +123,7 @@ pub fn handle_pipes<R: Registry>(pipes: &mut SlotMap<PipeKey, Pipe>, fluid_hatch
         } = *pipe;
 
         // reset velocities
+        let tmp_velocities = velocities.clone();
         velocities.fill(0);
 
         // don't do anything if belt points to invalid hatches
@@ -123,15 +131,18 @@ pub fn handle_pipes<R: Registry>(pipes: &mut SlotMap<PipeKey, Pipe>, fluid_hatch
             continue;
         }
 
-        dbg!(fluid_hatches[pipe_start].fluid);
-        dbg!(fluid_hatches[pipe_end].fluid);
+        // dbg!(fluid_hatches[pipe_start].fluid);
+        // dbg!(fluid_hatches[pipe_end].fluid);
         
 
         //  pipe start hatch <-> [buffer] <-> pipe end hatch
 
-        equalize_hatch(fluid_hatches, pipe_start, buffer.first_mut().unwrap(), &mut 0i32, settings);
-        equalize_hatch(fluid_hatches, pipe_end, buffer.last_mut().unwrap(), &mut 0i32, settings);
+        equalize_hatch(fluid_hatches, pipe_start, buffer.first_mut().unwrap(), velocities.first_mut().unwrap(), settings);
+        equalize_hatch(fluid_hatches, pipe_end, buffer.last_mut().unwrap(), velocities.last_mut().unwrap(), settings);
         
+        // flipped.. oops..
+        *velocities.last_mut().unwrap() = -*velocities.last_mut().unwrap();
+
         // *tmp_modifs.first_mut().unwrap() = equalize_hatch_store_to_temp(fluid_hatches, pipe_end, buffer.first().unwrap(), settings);
         // *tmp_modifs.last_mut().unwrap() = equalize_hatch_store_to_temp(fluid_hatches, pipe_start, buffer.last().unwrap(), settings);
         
@@ -146,6 +157,10 @@ pub fn handle_pipes<R: Registry>(pipes: &mut SlotMap<PipeKey, Pipe>, fluid_hatch
         // *tmp_modifs.first_mut().unwrap() = equalize_hatch_store_to_temp(fluid_hatches, pipe_end, buffer.first().unwrap(), settings);
         // *tmp_modifs.last_mut().unwrap() = equalize_hatch_store_to_temp(fluid_hatches, pipe_start, buffer.last().unwrap(), settings);
 
+        // vel[0]    = velocity between hatch and first buffer element
+        // vel[n-1]  = velocity between hatch and last buffer element
+        
+
         // apply the result of the buffer at the end
         for i in 0..(buffer.len()-1) {
             let from_a_to_b = tmp_modifs[i];
@@ -157,7 +172,7 @@ pub fn handle_pipes<R: Registry>(pipes: &mut SlotMap<PipeKey, Pipe>, fluid_hatch
             buffer[i+1] += from_a_to_b;
             
             // buffer[i] += tmp_modifs[i];
-            velocities[i] = tmp_modifs[i];
+            velocities[i+1] += tmp_modifs[i];
         }
     }
 }
@@ -181,7 +196,6 @@ fn equalize_hatch_store_to_temp(hatches: &mut SlotMap<FluidHatchKey, FluidHatch>
     calculate_ideal_transfer_rate_from_a_to_b(dst, src, settings, true)
 }
 
-
 // where ideal transfer rate `t` is just `(max(a,0)-max(b,0)) / 2`
 fn calculate_ideal_transfer_rate_from_a_to_b(a: &FluidType, b: &FluidType, settings: &Settings, limited: bool) -> FluidType {
     fn z(a: i32) -> i32 {
@@ -189,15 +203,15 @@ fn calculate_ideal_transfer_rate_from_a_to_b(a: &FluidType, b: &FluidType, setti
     }
     
     let transfer = (z(*a) - z(*b)) / 2;
-    let bounds = 100;
+    let bounds = MAX_TRANSFER_FROM_A_TO_B;
     let transfer = transfer.clamp(-bounds, bounds);
 
     if limited {
-        if transfer > 0 && *b > 300 {
+        if transfer > 0 && *b > MAX_VOLUME_PER_SLICE {
             return 0;
         }
 
-        if transfer < 0 && *a > 300 {
+        if transfer < 0 && *a > MAX_VOLUME_PER_SLICE {
             return 0;
         }
     }

@@ -123,7 +123,7 @@ impl PipeNode {
         let pipe = &bound.game.pipes[self.key];
 
         let stats = pipe.stats();
-        let string = format!("{:?}", stats);
+        let string = format!("{:#?}", stats);
         GString::from_str(&string).unwrap()
     }
 }

@@ -488,25 +488,24 @@ mod fluid_tests {
         let producer = sim.add_fluid_buffer(false, true);
         let consumer = sim.add_fluid_buffer(true, false);
 
-        let producer = sim.fluid_buffers[producer].output;
-        let consumer = sim.fluid_buffers[consumer].input;
+        let producer_hatch = sim.fluid_buffers[producer].output;
+        let consumer_hatch = sim.fluid_buffers[consumer].input;
         
-        let pipe = sim.add_pipe(producer, consumer, BufferSize::BufferLength(6));
+        let pipe = sim.add_pipe(producer_hatch, consumer_hatch, BufferSize::BufferLength(16));
 
-        for i in 0..64 {
+        for i in 0..128 {
             sim.tick();
-            // dbg!(&sim.pipes[pipe].buffer);
+            // dbg!(&sim.pipes[pipe].velocities);
             // dbg!(sim.pipes[pipe].stats());
+            
         }
 
-        dbg!(&sim.pipes[pipe].velocities);
-        dbg!(&sim.pipes[pipe].buffer);
-        dbg!(sim.pipes[pipe].stats());
+        // dbg!(&sim.pipes[pipe].velocities);
+        // dbg!(&sim.pipes[pipe].buffer);
+        // dbg!(sim.pipes[pipe].stats());
         
         
     }
-
-    fn volume_increases_test() {}
 }
 
 mod tests {

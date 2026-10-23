@@ -106,8 +106,25 @@ impl PipeNode {
         let pipe = &bound.game.pipes[self.key];
 
         let total_volume = pipe.buffer.iter().sum::<i32>();
-        let text = format!("volume: {total_volume}, buffer size: {}", pipe.buffer.len());
+        let total_velocity = pipe.velocities.iter().sum::<i32>();
+        let text = format!("volume: {total_volume}, velocities: {total_velocity}, buffer size: {}", pipe.buffer.len());
+        
         GString::from_str(&text).unwrap()
+    }
+
+
+    #[func]
+    fn get_debug_info(&mut self) -> GString {
+        let tree = self.base().get_tree();
+        let window = tree.get_root().unwrap();
+        let root = window.get_child(0).unwrap();
+        let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
+        let bound = factory_manager.bind();
+        let pipe = &bound.game.pipes[self.key];
+
+        let stats = pipe.stats();
+        let string = format!("{:?}", stats);
+        GString::from_str(&string).unwrap()
     }
 }
 

@@ -29,6 +29,9 @@ struct ItemBuilder {
 
 enum ItemModel {
     OreMeshA,
+    OreMeshB,
+    OreMeshC,
+    
     DustMeshA,
     DustMeshB,
     IngotMesh,
@@ -57,6 +60,9 @@ impl ItemBuilder {
     fn with_model(mut self, model: ItemModel) -> Self {
         self.item.data.item_model_resource = match model {
             ItemModel::OreMeshA => "res://models/Ore Mesh A.blend",
+            ItemModel::OreMeshB => "res://models/Ore Mesh B.blend",
+            ItemModel::OreMeshC => "res://models/Ore Mesh C.blend",
+            
             ItemModel::DustMeshA => "res://models/Dust Mesh A.blend",
             ItemModel::DustMeshB => "res://models/Dust Mesh B.blend",
             ItemModel::IngotMesh => "res://models/Ingot Mesh.blend",
@@ -120,19 +126,13 @@ impl MinerRecipeBuilder {
     }
 }
 
-
+#[derive(Default)]
 pub struct DefaultRegistry {
     items: Vec<RegistryItem<DefaultRegistryItemData>>,
     recipes: HashMap<String, Recipe>,
     miner_recipes: HashMap<String, MinerRecipe>,
 }
 
-impl Default for DefaultRegistry {
-    fn default() -> Self {
-        // FIXME: this feels a bit weird. are we allowed to do this? to construct the registry itself in the default constructor?
-        Self::build()
-    }
-}
 
 pub struct DefaultRegistryItemData {
     pub item_model_resource: &'static str,
@@ -182,12 +182,24 @@ impl DefaultRegistry {
         self.recipes.insert(recipe.id.to_string(), recipe);
     }
 
-    fn build() -> Self {
+    pub fn build() -> Self {
         let mut reg = Self::empty();
 
         let raw_iron = reg.insert_item(
-            ItemBuilder::new("raw iron", 255)
+            ItemBuilder::new("raw iron 1", 255)
             .with_model(ItemModel::OreMeshA)
+            .with_material(ItemMaterial::RawOre)
+        );
+
+        let raw_iron_1 = reg.insert_item(
+            ItemBuilder::new("raw iron 2", 255)
+            .with_model(ItemModel::OreMeshB)
+            .with_material(ItemMaterial::RawOre)
+        );
+
+        let raw_iron_2 = reg.insert_item(
+            ItemBuilder::new("raw iron 3", 255)
+            .with_model(ItemModel::OreMeshC)
             .with_material(ItemMaterial::RawOre)
         );
 

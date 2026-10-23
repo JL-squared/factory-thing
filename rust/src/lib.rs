@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use godot::prelude::*;
 use godot::classes::*;
 
@@ -55,12 +56,44 @@ impl INode3D for FactoryManager {
     }
 
     fn enter_tree(&mut self) {
-        let items = self.game.registry.list_registry_items();
+        self.game.registry = DefaultRegistry::build();
 
+        
+        let mut models = HashMap::<String, Option<Gd<PackedScene>>>::default();
+        let mut materials = HashMap::<String, Option<Gd<Material>>>::default();
+        
+        let items = self.game.registry.list_registry_items();
         for (index, item) in items.enumerate() {
             if index != 0 {
-                self.godot_item_models_registry.insert(index as u8, load::<PackedScene>(item.data.item_model_resource));
-                self.godot_item_materials_registry.insert(index as u8, load::<Material>(item.data.item_material_resource));
+                if !item.data.item_model_resource.is_empty() {
+                    models.insert(item.data.item_model_resource.to_string(), None);
+                }
+
+                if !item.data.item_material_resource.is_empty() {
+                    materials.insert(item.data.item_material_resource.to_string(), None);
+                }
+            }
+        }
+
+        godot::prelude::godot_print!("# of model resources to load in registry: {}", models.len());
+        godot::prelude::godot_print!("# of material resources to load in registry: {}", materials.len());
+        
+        // load all models
+        for (path, dst) in models.iter_mut() {
+            *dst = Some(load::<PackedScene>(path));
+        }
+
+        // load all materials
+        for (path, dst) in materials.iter_mut() {
+            *dst = Some(load::<Material>(path));
+        }
+
+        // assign references to model and materials to the items loaded in registry
+        let items = self.game.registry.list_registry_items();
+        for (index, item) in items.enumerate() {
+            if index != 0 {
+                self.godot_item_models_registry.insert(index as u8, models[item.data.item_model_resource].as_ref().unwrap().clone());
+                self.godot_item_materials_registry.insert(index as u8, materials[item.data.item_material_resource].as_ref().unwrap().clone());
             }
         }
 

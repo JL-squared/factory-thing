@@ -52,7 +52,7 @@ In the previous implementation of this prototype, we used a realistic fluid prop
 - fluids take time to propagate in pipes
 - fluid propagation decreases over distance
 - fluid pressure shenanigans (removing a pipe or closing a valve leads to a "ripple" effect to the rest of the system)
-
+- it would be *extremely* cool if the fluid system allows for vacuums or negative pressure. you could create a buffer, pull a vacuum in it, and connect some pipes to another buffer and it will automatically pull the fluid.
 
 # Ideas
 ## Multiblocks / Modular Components

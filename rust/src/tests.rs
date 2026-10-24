@@ -493,10 +493,13 @@ mod fluid_tests {
         
         let pipe = sim.add_pipe(producer_hatch, consumer_hatch, BufferSize::BufferLength(16));
 
-        for i in 0..128 {
+        for i in 0..64 {
             sim.tick();
-            // dbg!(&sim.pipes[pipe].velocities);
-            // dbg!(sim.pipes[pipe].stats());
+            // dbg!(&sim.pipes[pipe].flow_rate);
+            
+            // dbg!(&sim.pipes[pipe].volume);
+
+            dbg!(sim.pipes[pipe].stats());
             
         }
 

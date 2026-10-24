@@ -1,26 +1,45 @@
 use crate::registry;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Properties {
+    // kelvin    
+    // combine rule: average
+    pub temperature: u16,
+    
+    // percentage
+    // combine rule: maximum
+    pub dirtyness: u8
+}
+
+impl Properties {
+    pub const NORMAL: Properties = Properties {
+        temperature: 270,
+        dirtyness: 0,
+    };
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Item {
     pub id: u8,
     pub count: u8,
+    pub properties: Properties,
 }
 
 impl Item {
     pub const fn one(id: u8) -> Self {
-        Self { id, count: 1 }
+        Self { id, count: 1, properties: Properties::NORMAL }
     }
 
     pub fn full_stack<R: registry::Registry>(id: u8, registry: &R) -> Self {
-        Self { id, count: registry.stack_size(id) }
+        Self { id, count: registry.stack_size(id), properties: Properties::NORMAL }
     }
 
     pub const fn new(id: u8, count: u8) -> Self {
-        Self { id, count }
+        Self { id, count, properties: Properties::NORMAL }
     }
 
     pub const fn invalid() -> Self {
-        Self { id: 0, count: 0 }
+        Self { id: 0, count: 0, properties: Properties::NORMAL }
     }
 
     pub const fn is_invalid(&self) -> bool {
@@ -187,7 +206,8 @@ mod item_tests {
 
         let item = Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
         assert!(!item.is_invalid());
-        assert_eq!(item, Item { id: ItemTestRegistry::ITEM_WITH_STACK_SIZE_255, count: 1 });
+        assert_eq!(item.id, ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
+        assert_eq!(item.count, 1);
     }
 
     #[test]

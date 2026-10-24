@@ -115,14 +115,23 @@ impl RecipeBuilder {
 
 struct MinerRecipeBuilder(MinerRecipe);
 impl MinerRecipeBuilder {
-    fn new(id: &'static str, ticks: u16, load: isize, item: Item) -> Self {
+    fn new(id: &'static str, ticks: u16, load: isize) -> Self {
         Self(MinerRecipe {
             id,
             name: id,
-            output: item,
+            outputs: vec![],
             ticks,
             load,
         })
+    }
+
+    fn add_possibility(mut self, item_id: u8, min_max_stack_size: std::ops::Range<u8>, min_max_dirtyness: std::ops::Range<u8>) -> Self {
+        self.0.outputs.push(MinerPossibleOutput {
+            item_id,
+            min_max_stack_size,
+            min_max_dirtyness,
+        });
+        self
     }
 }
 
@@ -225,7 +234,13 @@ impl DefaultRegistry {
         reg.insert_recipe(RecipeBuilder::new("crush_iron_more", 32, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)));
         reg.insert_recipe(RecipeBuilder::new("smelt_iron", 4, 1).input(Item::one(iron_dust)).output(Item::one(iron_ingot)));
         
-        reg.insert_miner_recipe(MinerRecipeBuilder::new("mine_iron", 128, 30, Item::one(raw_iron)));
+        reg.insert_miner_recipe(
+            MinerRecipeBuilder::new("mine_iron", 128, 30)
+                .add_possibility(raw_iron, 1..2, 0..128)
+                .add_possibility(raw_iron, 16..30, 128..240)
+                .add_possibility(raw_iron, 30..31, 240..255)
+
+        );
 
         reg
     }
@@ -268,11 +283,19 @@ pub struct Recipe {
     pub load: LoadUnit,
 }
 
+
+#[derive(Debug)]
+pub struct MinerPossibleOutput {
+    pub item_id: u8,
+    pub min_max_stack_size: std::ops::Range<u8>,
+    pub min_max_dirtyness: std::ops::Range<u8>,
+}
+
 #[derive(Debug)]
 pub struct MinerRecipe {
     pub id: &'static str,
     pub name: &'static str,
-    pub output: Item,
+    pub outputs: Vec<MinerPossibleOutput>,
     pub ticks: u16,
     pub load: LoadUnit,
 }

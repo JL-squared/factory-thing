@@ -69,16 +69,51 @@ pub struct Commons<'a, R: GenericRecipe> {
     
 }
 
+type PossiblyMultipleItems = Vec<Item>;
+
 pub trait GenericRecipe {
     fn load(&self) -> LoadUnit;
     fn ticks(&self) -> u16;
     fn inputs(&self) -> Vec<Item>;
-    fn outputs(&self) -> Vec<Item>;
+    fn outputs(&self) -> Vec<PossiblyMultipleItems>;
 }
 
 pub trait GenericMachine {
     type Key: slotmap::Key;
     type Recipe: GenericRecipe;
+
+    fn check_machine_input_requirements_valid(recipe: &Self::Recipe, inputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>) -> bool {
+        recipe.inputs().iter().zip(inputs.iter()).all(
+            |(recipe_input_item, input_hatch)| {
+                let buffer = hatches[*input_hatch].buffer;
+                buffer.id == recipe_input_item.id
+                    && buffer.count >= recipe_input_item.count
+            },
+        )
+    }
+
+    fn check_machine_output_requirements_valid<R: Registry>(recipe: &Self::Recipe, outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, registry: &R) -> bool {
+        recipe.outputs().iter().zip(outputs.iter()).all(
+            |(multiple_possible_output_items, output_hatch)| {
+                let buffer = hatches[*output_hatch].buffer;
+                if buffer.is_invalid() {
+                    return true;
+                }
+
+                // if we have multiple different output items (weighted probability), then make sure that ALL of those items can be outputted from the machine
+                multiple_possible_output_items.iter().all(|single_item| {
+                    // if the item is the same, must make sure that we have enough space in the hatch to place it 
+                    let same_id = buffer.id == single_item.id;
+                    let stack_size = registry.stack_size(buffer.id);
+
+                    // this CAN overflow if stack size is at MAX
+                    // if we know it will overflow, then we cannot process the recipe
+                    let opt_non_overflowing_enough_space_considering_stack_size = buffer.count.checked_add(single_item.count).map(|x| x <= stack_size);
+                    same_id && opt_non_overflowing_enough_space_considering_stack_size.unwrap_or_default()
+                })
+            },
+        )
+    }
 
     fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe>;
     fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
@@ -97,8 +132,9 @@ impl GenericRecipe for MinerRecipe {
         Vec::default()
     }
 
-    fn outputs(&self) -> Vec<Item> {
-        vec![self.output]
+    fn outputs(&self) -> Vec<PossiblyMultipleItems> {
+        let collection = self.outputs.iter().map(|x| Item::new(x.item_id, 1)).collect();
+        vec![collection]
     }
 }
 
@@ -121,10 +157,16 @@ impl GenericMachine for Miner {
     }
 
     fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
-        if rng.bool() {
-            let buffer = &mut hatches[outputs[0]].buffer;
-            buffer.accumulate::<R>(&recipe.output, registry);
+        let buffer = &mut hatches[outputs[0]].buffer;
+        if let Some(x) = rng.choice(recipe.outputs.iter()) {
+            let mut item = Item::invalid();
+            item.id = x.item_id;
+            item.properties.dirtyness = rng.u8(x.min_max_dirtyness.clone());
+            item.count = rng.u8(x.min_max_stack_size.clone());
+            
+            buffer.accumulate::<R>(&item, registry);
         }
+        
     }
 }
 
@@ -143,8 +185,8 @@ impl GenericRecipe for Recipe {
         self.input.to_vec()
     }
 
-    fn outputs(&self) -> Vec<Item> {
-        self.output.to_vec()
+    fn outputs(&self) -> Vec<PossiblyMultipleItems> {
+        self.output.iter().map(|x| vec![*x]).collect()
     }
 }
 
@@ -256,32 +298,10 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
         if progress.is_none() {
             // assert_eq!(recipe.input.len(), machine.input.len(), "machine recipe input items count and input hatches count do not match");
             // assert_eq!(recipe.output.len(), machine.output.len(), "machine recipe output items count and output hatches count do not match");
-            let inputs_match_recipe_input =
-                recipe.inputs().iter().zip(inputs.iter()).all(
-                    |(recipe_input_item, input_hatch)| {
-                        let buffer = hatches[*input_hatch].buffer;
-                        buffer.id == recipe_input_item.id
-                            && buffer.count >= recipe_input_item.count
-                    },
-                );
-            let outputs_match_recipe_output =
-                recipe.outputs().iter().zip(outputs.iter()).all(
-                    |(recipe_output_item, output_hatch)| {
-                        let buffer = hatches[*output_hatch].buffer;
-                        if buffer.is_invalid() {
-                            return true;
-                        }
-
-                        // if the item is the same, must make sure that we have enough space in the hatch to place it 
-                        let same_id = buffer.id == recipe_output_item.id;
-                        let stack_size = registry.stack_size(buffer.id);
-
-                        // this CAN overflow if stack size is at MAX
-                        // if we know it will overflow, then we cannot process the recipe
-                        let opt_non_overflowing_enough_space_considering_stack_size = buffer.count.checked_add(recipe_output_item.count).map(|x| x <= stack_size);
-                        same_id && opt_non_overflowing_enough_space_considering_stack_size.unwrap_or_default()
-                    },
-                );
+            let inputs_match_recipe_input = M::check_machine_input_requirements_valid(recipe, &inputs, hatches);
+                
+            let outputs_match_recipe_output = M::check_machine_output_requirements_valid(recipe, &outputs, hatches, registry);
+                
 
             // if requirements are met, then we can begin machine progress
             if inputs_match_recipe_input && outputs_match_recipe_output {

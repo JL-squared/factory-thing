@@ -137,7 +137,8 @@ impl MinerNode {
         let registry = &bound.game.registry;
         let recipe = registry.registry_miner_recipe(machine.recipe.as_ref().unwrap());
 
-        let string = format!("{} EU/t => {} ({}t)", recipe.load, recipe.output.display::<DefaultRegistry>(registry), recipe.ticks);
+        // let string = format!("{} EU/t => {} ({}t)", recipe.load, recipe.output.display::<DefaultRegistry>(registry), recipe.ticks);
+        let string = String::new();
         
         GString::from_str(&string).unwrap()
     }

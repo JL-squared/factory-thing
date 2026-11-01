@@ -152,8 +152,13 @@ impl GenericMachine for Miner {
         if let Some(x) = rng.choice(recipe.outputs.iter()) {
             let mut item = Item::invalid();
             item.id = x.item_id;
-            item.properties.dirtyness = rng.u8(x.min_max_dirtyness.clone());
             item.count = rng.u8(x.min_max_stack_size.clone());
+            item.fill_properties(|| {
+                PropertiesForSingleItem {
+                    temperature: 270,
+                    dirtyness: rng.u8(x.min_max_dirtyness.clone()),
+                }
+            });
             
             hatch.transfer_from_item_limited::<R>(&mut item, 255, registry);
 
@@ -215,7 +220,10 @@ impl GenericMachine for Machine {
             recipe.input.iter().zip(inputs.iter())
         {
             let hatch = &mut hatches[*hatch_input];
-            hatch.take(recipe_input);
+            let taken = hatch.take(recipe_input.id, recipe_input.count, registry);
+        
+            // the taken item here can *change* how the recipe behaves! or the outputs of the recipe in the for loop right after this one!
+            // ooo.... interesting....
         }
 
         // put items in output hatches

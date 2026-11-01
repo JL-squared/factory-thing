@@ -231,15 +231,15 @@ impl DefaultRegistry {
         );
 
         reg.insert_recipe(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron)).output(Item::one(crushed_iron)));
+        
         reg.insert_recipe(RecipeBuilder::new("crush_iron_more", 32, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)));
         reg.insert_recipe(RecipeBuilder::new("smelt_iron", 4, 1).input(Item::one(iron_dust)).output(Item::one(iron_ingot)));
         
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_iron", 128, 30)
-                .add_possibility(raw_iron, 1..2, 0..128)
-                .add_possibility(raw_iron, 16..30, 128..240)
-                .add_possibility(raw_iron, 30..31, 240..255)
-
+                .add_possibility(raw_iron, 1..5, 0..128)
+                .add_possibility(raw_iron_1, 1..5, 0..128)
+                .add_possibility(raw_iron_2, 1..5, 0..128)
         );
 
         reg

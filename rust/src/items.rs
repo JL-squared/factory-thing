@@ -1,21 +1,53 @@
+use arrayvec::ArrayVec;
+use smallvec::SmallVec;
+
 use crate::registry;
 
+
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PropertiesForSingleItem {
+    pub temperature: u16,
+    pub dirtyness: u8
+}
+
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct AveragedPropertiesForStack {
+    pub temperature: f32,
+    pub dirtyness: f32
+}
+
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Properties {
     // kelvin    
     // combine rule: average
-    pub temperature: u16,
+    pub temperature: [u16; 256],
     
     // percentage
     // combine rule: maximum
-    pub dirtyness: u8
+    pub dirtyness: [u8; 256]
 }
 
 impl Properties {
     pub const NORMAL: Properties = Properties {
-        temperature: 270,
-        dirtyness: 0,
+        temperature: [270; 256],
+        dirtyness: [0; 256],
     };
+
+    pub fn mem_copy_and_invalidate_src(src: &mut Properties, src_offset: u8, dst: &mut Properties, dst_offset: u8, count: u8) {
+        fn inner<T: Copy+Default>(src: &mut [T], src_offset: usize, dst: &mut [T], dst_offset: usize, count: usize) {
+            let src_slice = &mut src[src_offset..(src_offset+count)];
+            let dst_slice = &mut dst[dst_offset..(dst_offset+count)];
+            dst_slice.copy_from_slice(src_slice);
+            src_slice.fill(T::default());
+        }
+
+        inner(&mut src.temperature, src_offset as usize, &mut dst.temperature, dst_offset as usize, count as usize);
+        inner(&mut src.dirtyness, src_offset as usize, &mut dst.dirtyness, dst_offset as usize, count as usize);
+    
+    }
 }
 
 // pub enum ItemTakeResult {
@@ -23,11 +55,21 @@ impl Properties {
 //     FullStack
 // } 
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Item {
     pub id: u8,
     pub count: u8,
     pub properties: Properties,
+}
+
+impl std::fmt::Debug for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Item")
+            .field("id", &self.id)
+            .field("count", &self.count)
+            .field("dirtyness", &&self.properties.dirtyness[0..(self.count as usize)])
+            .field("temperature", &&self.properties.temperature[0..(self.count as usize)]).finish()
+    }
 }
 
 impl Item {
@@ -61,8 +103,29 @@ impl Item {
 
     pub const fn invalidate(&mut self) {
         *self = Self::invalid();
+        self.properties.temperature = [0; 256];
+        self.properties.dirtyness = [0; 256];   
     }
 
+    pub fn fill_properties(&mut self, mut callback: impl FnMut() -> PropertiesForSingleItem) {
+        self.properties.temperature.fill(0);
+        self.properties.dirtyness.fill(0);        
+        
+        for i in 0..self.count {
+            let val = callback();
+            self.properties.temperature[i as usize] = val.temperature;
+            self.properties.dirtyness[i as usize] = val.dirtyness;
+        }
+    }
+
+    pub fn averaged_properties(&self) -> AveragedPropertiesForStack {
+        let c = self.count as usize;
+        let cf = self.count as f32; 
+        AveragedPropertiesForStack {
+            temperature: self.properties.temperature[0..c].iter().map(|x| *x as u64).sum::<u64>() as f32 / cf,
+            dirtyness: self.properties.dirtyness[0..c].iter().map(|x| *x as u64).sum::<u64>() as f32 / cf,
+        }
+    }
 
     // `from` can be invalid
     // `to` can be invalid
@@ -99,6 +162,8 @@ impl Item {
         assert!(transferred_amount <= stack_size);
         assert!(transferred_amount <= src.count);
         
+        // transfer item properties
+        Properties::mem_copy_and_invalidate_src(&mut src.properties, src.count-transferred_amount, &mut dst.properties, dst.count, transferred_amount);
 
         dst.count += transferred_amount;
         src.count -= transferred_amount;
@@ -146,10 +211,12 @@ impl Item {
         if self.is_invalid() {
             "Invalid".to_string()
         } else {
-            format!("\"{}\" ({})", registry.name(self.id), self.count)
+            let props = self.averaged_properties();
+            format!("\"{}\" ({}) d:{:2}/255, t:{:2}K", registry.name(self.id), self.count, props.dirtyness, props.temperature)
         }
     }
 
+    /*
     // assumes `other` is not invalid
     // assumes `other` has the same id as `self`
     // assumes `self` contains more items than `other`
@@ -160,12 +227,18 @@ impl Item {
 
 
         self.count = self.count - other.count;
+        for offset in 0..other.count {
+            src.properties.pop(src.count as usize - offset as usize);
+            dst.properties.set(dst.count as usize + offset as usize, val);
+        }
 
         if self.count == 0 {
             self.invalidate();
         }
     }
+    */
 
+    /*
     // returns the number of items actually taken
     // the returned value is in range of [0..count]
     pub const fn safe_take(&mut self, count: u8) -> u8 {
@@ -186,6 +259,7 @@ impl Item {
             count
         }
     } 
+    */
 }
 
 #[cfg(test)]
@@ -255,6 +329,7 @@ mod item_tests {
         assert_eq!(item.count, 1);
     }
 
+    /*
     #[test]
     fn invalidate_item() {
         let mut item = Item::one(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255);
@@ -285,6 +360,7 @@ mod item_tests {
         // should cause a subtract with overflow; panic
         item.take(&Item::new(ItemTestRegistry::ITEM_WITH_STACK_SIZE_255, 10));
     }
+    */
 
     #[test]
     fn accumulate_item() {

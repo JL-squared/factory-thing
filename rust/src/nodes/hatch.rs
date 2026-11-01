@@ -41,11 +41,23 @@ impl HatchNode {
         let bound = factory_manager.bind();
         let item = bound.game.hatches[self.key].buffer;
         let registry = &bound.game.registry;
-        // let item_text = item.display::<DefaultRegistry>(registry);
-        // let properties = format!("{{ t: {}k, d: {}% }}", item.properties.temperature, (item.properties.dirtyness as f32 / 255.0));
-        // let text = format!("id: {:?}. {}, {}", self.key, item_text, properties);
-        let text = "";
+        let text = item.iter().map(|x| x.display(registry)).fold(String::new(), |a, b| a+","+&b);
 
         GString::from_str(&text).unwrap()
+    }
+
+
+    #[func]
+    fn get_debug_info(&mut self) -> GString {
+        let tree = self.base().get_tree();
+        let window = tree.get_root().unwrap();
+        let root = window.get_child(0).unwrap();
+        let factory_manager = root.get_node_as::<FactoryManager>("FactoryManager");
+        let bound = factory_manager.bind();
+        let hatch = &bound.game.hatches[self.key];
+        
+        let string = format!("{:#?}", hatch);
+        
+        GString::from_str(&string).unwrap()
     }
 }

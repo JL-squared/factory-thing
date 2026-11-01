@@ -169,17 +169,28 @@ impl Hatch {
         assert!(clone.is_invalid());
     }
 
-    // assumes `other` is not invalid
-    // returns the result of the item take
-    pub fn take(&mut self, other: &Item) {
-        assert!(!other.is_invalid());
+    // tries to take an item of type ID and with a certain amount from the hatch
+    // item ID is the only thing that is "matched". item properties is ignored
+    pub fn take<R: Registry>(&mut self, id: u8, amount: u8, registry: &R) -> Option<Item> {
+        if amount == 0 {
+            return None;
+        }
 
-        let mut clone = other.clone();
-        
+        let mut target_transfer_amount = amount;
+        let mut tmp_dst = Item::invalid();
+
         for buffer_item in self.buffer.iter_mut() {     
-            if buffer_item.id == clone.id {
-                clone.count -= buffer_item.safe_take(clone.count);
+            if buffer_item.id == id {
+                let transferred = Item::transfer_limited(buffer_item, &mut tmp_dst, target_transfer_amount, registry);
+                target_transfer_amount -= transferred;
+                // clone.count -= buffer_item.safe_take(clone.count);
             }       
+        }
+
+        if tmp_dst.is_invalid() {
+            None
+        } else {
+            Some(tmp_dst)
         }
     }
 }

@@ -514,7 +514,12 @@ mod hatch_tests {
         let hatch = &mut sim.hatches[key];
         assert!(hatch.contains_item_of_id(TestRegistry::CRUSHED_IRON));
         let before = hatch.count_item_of_id(TestRegistry::CRUSHED_IRON);
-        hatch.take(&Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        let result = hatch.take(TestRegistry::CRUSHED_IRON, 1, &sim.registry);
+
+        assert!(result.is_some());
+        assert!(result.unwrap().count == 1);
+        assert!(result.unwrap().id == TestRegistry::CRUSHED_IRON);
+
         let after = hatch.count_item_of_id(TestRegistry::CRUSHED_IRON);
         assert!(before > after);
 

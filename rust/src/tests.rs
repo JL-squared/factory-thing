@@ -443,38 +443,6 @@ mod power_tests {
         assert!(game.wires[wire].flow == 0);
     }
 }
-
-#[cfg(test)]
-mod sink_source_tests {
-    use super::test_registry::*;
-    use crate::{common::BufferSize, *};
-    
-
-    #[test]
-    fn test_belt_1() {
-        let mut sim = TestGame::testing();
-        sim.settings.belt_ticks_between_transfers = 0;
-        sim.settings.belt_transfer_size = 255;
-
-        let source = sim.add_source(Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON, &sim.registry));
-        let sink = sim.add_sink();
-        
-        let key = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
-
-        assert!(sim.belts[key].is_empty());
-        sim.tick();
-        assert!(!sim.belts[key].is_empty());
-        assert!(sim.belts[key].first_item().id == TestRegistry::CRUSHED_IRON);
-
-        for _ in 0..10 {
-            sim.tick();
-        }
-
-        // we expect belt to be fully saturated by now
-        assert!(sim.belts[key].is_saturated());
-    }
-}
-
 #[cfg(test)]
 mod fluid_tests {
     use super::test_registry::*;
@@ -508,6 +476,141 @@ mod fluid_tests {
         // dbg!(sim.pipes[pipe].stats());
         
         
+    }
+}
+
+
+#[cfg(test)] 
+mod hatch_tests {
+    use super::test_registry::*;
+    use crate::{common::BufferSize, *};
+    
+    #[test]
+    fn create_empty_sink_hatch() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_sink();
+        sim.tick();
+        
+        let hatch = &sim.hatches[key];
+        assert!(hatch.is_invalid());
+    }
+
+    #[test]
+    fn create_full_source_hatch() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        sim.tick();
+        
+        let hatch = &sim.hatches[key];
+        assert!(hatch.contains_item_of_id(TestRegistry::CRUSHED_IRON));
+    }
+
+    #[test]
+    fn take_from_source_check_replenish() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        sim.tick();        
+        
+        let hatch = &mut sim.hatches[key];
+        assert!(hatch.contains_item_of_id(TestRegistry::CRUSHED_IRON));
+        let before = hatch.count_item_of_id(TestRegistry::CRUSHED_IRON);
+        hatch.take(&Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        let after = hatch.count_item_of_id(TestRegistry::CRUSHED_IRON);
+        assert!(before > after);
+
+        sim.tick();
+        let hatch = &mut sim.hatches[key];
+        let now = hatch.count_item_of_id(TestRegistry::CRUSHED_IRON);
+        assert!(before == now);        
+    }
+
+
+    #[test]
+    fn transfer_source_to_item_unlimited() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        sim.tick();        
+        
+        let hatch = &mut sim.hatches[key];
+    
+        assert!(hatch.count_item_of_id(TestRegistry::CRUSHED_IRON) >= sim.registry.stack_size(TestRegistry::CRUSHED_IRON) as usize);
+    
+    
+        let mut dst = Item::invalid();
+        hatch.transfer_to_item_limited(&mut dst, u8::MAX, &sim.registry);
+        assert!(!dst.is_invalid());
+        assert!(dst.is_full_stack(&sim.registry))
+    }
+
+
+    #[test]
+    fn transfer_source_to_item_limited() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        sim.tick();        
+        
+        let hatch = &mut sim.hatches[key];
+        let mut dst = Item::invalid();
+        hatch.transfer_to_item_limited(&mut dst, 1, &sim.registry);
+        assert!(!dst.is_invalid());
+        assert_eq!(dst.count,1);
+    }
+
+    #[test]
+    fn transfer_item_to_sink_unlimited() {
+        let mut sim = TestGame::testing();
+        let key = sim.add_sink();
+        sim.tick();        
+        let hatch = &mut sim.hatches[key];
+
+        
+        assert!(hatch.is_invalid());
+        assert!(!hatch.contains_item_of_id(TestRegistry::CRUSHED_IRON));
+        assert_eq!(hatch.count_item_of_id(TestRegistry::CRUSHED_IRON), 0);
+
+        let mut src = Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry);
+        let full_stack_size = src.count;
+        hatch.transfer_from_item_limited(&mut src, u8::MAX, &sim.registry);
+
+        assert!(hatch.contains_item_of_id(TestRegistry::CRUSHED_IRON));
+        assert_eq!(hatch.count_item_of_id(TestRegistry::CRUSHED_IRON), full_stack_size as usize);
+        assert!(!hatch.is_invalid());
+    }
+    
+    #[test]
+    fn tmp() {
+        let mut sim = TestGame::testing();
+        let source_key = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        let sink_key = sim.add_sink();
+        let [source, sink] = &sim.hatches.get_disjoint_mut([source_key, sink_key]).unwrap();
+        
+        
+        assert!(source.contains_item_of_id(TestRegistry::CRUSHED_IRON));
+        assert!(sink.is_invalid());        
+    }
+
+    #[test]
+    fn transfer_source_to_sink_simple() {
+        let mut sim = TestGame::testing();
+        sim.settings.belt_ticks_between_transfers = 0;
+        sim.settings.belt_transfer_size = 255;
+
+        let source = sim.add_source(Item::full_stack(TestRegistry::CRUSHED_IRON, &sim.registry));
+        let sink = sim.add_sink();
+        
+        let key = sim.add_belt_2(source, sink, BufferSize::BufferLength(10));
+
+        assert!(sim.belts[key].is_empty());
+        sim.tick();
+        assert!(!sim.belts[key].is_empty());
+        assert!(sim.belts[key].first_item().id == TestRegistry::CRUSHED_IRON);
+
+        for _ in 0..10 {
+            sim.tick();
+        }
+
+        // we expect belt to be fully saturated by now
+        assert!(sim.belts[key].is_saturated());
     }
 }
 

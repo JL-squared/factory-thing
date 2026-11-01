@@ -85,9 +85,7 @@ pub trait GenericMachine {
     fn check_machine_input_requirements_valid(recipe: &Self::Recipe, inputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>) -> bool {
         recipe.inputs().iter().zip(inputs.iter()).all(
             |(recipe_input_item, input_hatch)| {
-                let buffer = hatches[*input_hatch].buffer;
-                buffer.id == recipe_input_item.id
-                    && buffer.count >= recipe_input_item.count
+                hatches[*input_hatch].input_item_requirement(recipe_input_item)
             },
         )
     }
@@ -95,21 +93,14 @@ pub trait GenericMachine {
     fn check_machine_output_requirements_valid<R: Registry>(recipe: &Self::Recipe, outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, registry: &R) -> bool {
         recipe.outputs().iter().zip(outputs.iter()).all(
             |(multiple_possible_output_items, output_hatch)| {
-                let buffer = hatches[*output_hatch].buffer;
-                if buffer.is_invalid() {
+                let hatch = &hatches[*output_hatch];
+                if hatch.is_invalid() {
                     return true;
                 }
 
                 // if we have multiple different output items (weighted probability), then make sure that ALL of those items can be outputted from the machine
                 multiple_possible_output_items.iter().all(|single_item| {
-                    // if the item is the same, must make sure that we have enough space in the hatch to place it 
-                    let same_id = buffer.id == single_item.id;
-                    let stack_size = registry.stack_size(buffer.id);
-
-                    // this CAN overflow if stack size is at MAX
-                    // if we know it will overflow, then we cannot process the recipe
-                    let opt_non_overflowing_enough_space_considering_stack_size = buffer.count.checked_add(single_item.count).map(|x| x <= stack_size);
-                    same_id && opt_non_overflowing_enough_space_considering_stack_size.unwrap_or_default()
+                    hatch.can_accumulate_from_without_partial_takes_overflow_conservative(single_item, registry)
                 })
             },
         )
@@ -157,16 +148,19 @@ impl GenericMachine for Miner {
     }
 
     fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
-        let buffer = &mut hatches[outputs[0]].buffer;
+        let hatch = &mut hatches[outputs[0]];
         if let Some(x) = rng.choice(recipe.outputs.iter()) {
             let mut item = Item::invalid();
             item.id = x.item_id;
             item.properties.dirtyness = rng.u8(x.min_max_dirtyness.clone());
             item.count = rng.u8(x.min_max_stack_size.clone());
             
-            buffer.accumulate::<R>(&item, registry);
+            hatch.transfer_from_item_limited::<R>(&mut item, 255, registry);
+
+            // item MUST have been taken completely, no remaining item count
+            assert_eq!(item.count, 0);
+            assert!(item.is_invalid());
         }
-        
     }
 }
 
@@ -208,22 +202,28 @@ impl GenericMachine for Machine {
         }
     }
 
+
+        // fn cock(){
+        //     nrmod [rmod in yy & mut hatch = hato/oyrt)_
+        //     // who the fuck wrote that???]
+        // }
+
     fn do_thing_machine<R: registry::Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         // machine finished the recipe (remaining ticks is zero, but no need to update it, as we invalidate `progress` anyways)
         // take items from input hatches
         for (recipe_input, hatch_input) in
             recipe.input.iter().zip(inputs.iter())
         {
-            let buffer = &mut hatches[*hatch_input].buffer;
-            buffer.take(recipe_input);
+            let hatch = &mut hatches[*hatch_input];
+            hatch.take(recipe_input);
         }
 
         // put items in output hatches
         for (recipe_output, hatch_output) in
             recipe.output.iter().zip(outputs.iter())
         {
-            let buffer = &mut hatches[*hatch_output].buffer;
-            buffer.accumulate::<R>(recipe_output, registry);
+            let hatch = &mut hatches[*hatch_output];
+            hatch.accumulate::<R>(recipe_output, registry);
         }
     }
 }

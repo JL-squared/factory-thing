@@ -18,6 +18,11 @@ impl Properties {
     };
 }
 
+// pub enum ItemTakeResult {
+//     Partial(u8),
+//     FullStack
+// } 
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Item {
     pub id: u8,
@@ -46,6 +51,14 @@ impl Item {
         self.id == 0 && self.count == 0
     }
 
+    pub fn is_full_stack<R: registry::Registry>(&self, registry: &R) -> bool {
+        if self.is_invalid() {
+            false
+        } else {
+            self.count == registry.stack_size(self.id)
+        }
+    }
+
     pub const fn invalidate(&mut self) {
         *self = Self::invalid();
     }
@@ -54,14 +67,21 @@ impl Item {
     // `from` can be invalid
     // `to` can be invalid
     // this will do the transfer appropriately. modifies both
-    pub fn transfer_limited<R: registry::Registry>(src: &mut Item, dst: &mut Item, max_transfer_count: u8, registry: &R) {
+    // returns the transferred count
+    pub fn transfer_limited<R: registry::Registry>(src: &mut Item, dst: &mut Item, max_transfer_count: u8, registry: &R) -> u8 {
+        /*
+        if max_transfer_count == 0 {
+            return 0
+        }
+        */
+
         if src.is_invalid() {
-            return;
+            return 0;
         }
 
         if dst.id != src.id && !dst.is_invalid() {
             // different ID, don't accumulate
-            return;
+            return 0;
         }
 
         // src ID is valid (but dst ID can be invalid), do transfer but STACK LIMITED
@@ -90,6 +110,8 @@ impl Item {
         if src.count == 0 {
             src.invalidate();
         }
+
+        transferred_amount
     }
 
     pub fn accumulate<R: registry::Registry>(&mut self, other: &Item, registry: &R) {
@@ -130,9 +152,11 @@ impl Item {
 
     // assumes `other` is not invalid
     // assumes `other` has the same id as `self`
+    // assumes `self` contains more items than `other`
     pub const fn take(&mut self, other: &Item) {
         assert!(!other.is_invalid());
         assert!(self.id == other.id);
+        assert!(self.count >= other.count);
 
 
         self.count = self.count - other.count;
@@ -141,6 +165,27 @@ impl Item {
             self.invalidate();
         }
     }
+
+    // returns the number of items actually taken
+    // the returned value is in range of [0..count]
+    pub const fn safe_take(&mut self, count: u8) -> u8 {
+        // no-op
+        if count == 0 {
+            return 0;
+        }
+
+        let before = self.count;
+        self.count = self.count.saturating_sub(count);
+
+        if self.count == 0 {
+            // entire stack was invalidated, we took the entire stack amount
+            self.invalidate();
+            before
+        } else {
+            // stack was not invalidated, we took `count` amount
+            count
+        }
+    } 
 }
 
 #[cfg(test)]

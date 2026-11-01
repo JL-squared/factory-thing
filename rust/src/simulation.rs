@@ -66,13 +66,13 @@ impl<R: registry::Registry> Simulation<R> {
         // update debug sources
         for (source, item) in self.sources.iter() {
             let hatch = &mut hatches[*source];
-            hatch.buffer = *item;            
+            hatch.fill(*item);            
         }
 
         // update debug sinks
         for sink in self.sinks.iter() {
             let hatch = &mut hatches[*sink];
-            hatch.buffer.invalidate();
+            hatch.invalidate();
         }
 
         // doing belt logic before machine logic fixes "sigle-tick idle" issue when belt transfer speed === machine recipe tick speed (halting on input materials) 
@@ -310,17 +310,15 @@ impl<R: registry::Registry> Simulation<R> {
     
     
     pub fn get_input_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Item {
-        &mut self.hatches[self.machines[machine_id].input[hatch_index]].buffer
+        &mut self.hatches[self.machines[machine_id].input[hatch_index]].buffer[0]
     }
 
     pub fn get_output_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Item {
-        &mut self.hatches[self.machines[machine_id].output[hatch_index]].buffer
+        &mut self.hatches[self.machines[machine_id].output[hatch_index]].buffer[0]
     }
 
     pub fn add_source(&mut self, source_item: Item) -> HatchKey {
-        let key = self.hatches.insert(Hatch {
-            buffer: source_item,
-        });
+        let key = self.hatches.insert(Hatch::full(source_item));
 
         self.sources.push((key, source_item));
 
@@ -328,9 +326,7 @@ impl<R: registry::Registry> Simulation<R> {
     }
 
     pub fn add_sink(&mut self) -> HatchKey {
-        let key = self.hatches.insert(Hatch {
-            buffer: Item::invalid(),
-        });
+        let key = self.hatches.insert(Hatch::empty());
 
         self.sinks.push(key);
 

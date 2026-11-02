@@ -14,32 +14,20 @@ use crate::Simulation;
         fn default() -> Self {
             let mut hashmap: HashMap<String, MultiRecipe> = HashMap::<String, MultiRecipe>::new();
 
-            let crush_iron_recipe: Recipe = Recipe {
-                id: "crush_iron",
-                name: "",
-                input: vec![Item::one(Self::RAW_IRON_1)],
-                output: vec![Item::one(Self::CRUSHED_IRON)],
-                ticks: 16,
-                load: 10,
-            };  
+            let crush_iron_recipe: Recipe = RecipeBuilder::new("crush_iron", 16, 10)
+                .input(Item::one(Self::RAW_IRON_1))
+                .output(Item::one(Self::CRUSHED_IRON))
+                .build();  
 
-            let crush_iron_more_recipe: Recipe = Recipe {
-                id: "crush_iron_more",
-                name: "",
-                input: vec![Item::one(Self::CRUSHED_IRON)],
-                output: vec![Item::one(Self::IRON_DUST)],
-                ticks: 16,
-                load: 10,
-            };  
+            let crush_iron_more_recipe: Recipe = RecipeBuilder::new("crush_iron_more", 16, 10)
+                .input(Item::one(Self::CRUSHED_IRON))
+                .output(Item::one(Self::IRON_DUST))
+                .build();  
 
-            let smelt_iron_recipe: Recipe = Recipe {
-                id: "smelt_iron",
-                name: "",
-                input: vec![Item::one(Self::IRON_DUST)],
-                output: vec![Item::one(Self::IRON_INGOT)],
-                ticks: 4,
-                load: 0,
-            };
+            let smelt_iron_recipe: Recipe = RecipeBuilder::new("smelt_iron", 4, 0)
+                .input(Item::one(Self::IRON_DUST))
+                .output(Item::one(Self::IRON_INGOT))
+                .build();  
 
             let recipes = [MultiRecipe::new(crush_iron_recipe), MultiRecipe::new(crush_iron_more_recipe), MultiRecipe::new(smelt_iron_recipe)];
             
@@ -445,6 +433,8 @@ mod power_tests {
         let wire = game.add_wire(a,b);
         
         game.tick();
+        
+        assert!(game.machines[m].progress.is_none());
         assert_no_power(game, a, b, wire);
     }
 

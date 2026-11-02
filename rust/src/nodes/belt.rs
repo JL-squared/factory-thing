@@ -1,5 +1,8 @@
 use crate::common::BufferSize;
 
+use godot::classes::*;
+use godot::prelude::*;
+
 use super::*;
 
 #[derive(GodotClass)]

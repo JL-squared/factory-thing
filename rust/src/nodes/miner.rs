@@ -1,5 +1,7 @@
 use crate::registry::MinerRecipe;
 
+use godot::classes::*;
+use godot::prelude::*;
 use super::*;
 
 #[derive(GodotClass)]
@@ -8,6 +10,10 @@ pub struct MinerNode {
     base: Base<Node3D>,
     key: MinerKey,
     pole_key: PoleKey,
+
+    #[export]
+    recipe_name_id: godot::builtin::GString,
+
 }
 
 #[godot_api]
@@ -17,6 +23,7 @@ impl INode3D for MinerNode {
             base,
             key: MinerKey::null(),
             pole_key: PoleKey::null(),
+            recipe_name_id: Default::default(),
         }
     }
 
@@ -32,7 +39,7 @@ impl INode3D for MinerNode {
         pole.owned = true;
         self.pole_key = pole.key;
         
-        self.key = bound.game.add_miner_with_pole("mine_iron".to_owned(), pole.key);
+        self.key = bound.game.add_miner_with_pole(self.recipe_name_id.clone().into(), pole.key);
 
         if let Ok(mut hatch_node) = self.base().find_child("Output Hatch").unwrap().try_cast::<HatchNode>() {
             let mut node = hatch_node.bind_mut();

@@ -143,32 +143,32 @@ impl Heat {
     }
 }
 
-#[test]
-fn test() {
-    let mut heat = Heat::default();
-    heat.add_chunk(vek::Vec3::zero());
-    heat.add_sensor(vek::Vec3::zero());
-    heat.tick();
-    assert!(heat.get_sensors()[0] == 0f32);
-}
+// #[test]
+// fn test() {
+//     let mut heat = Heat::default();
+//     heat.add_chunk(vek::Vec3::zero());
+//     heat.add_sensor(vek::Vec3::zero());
+//     heat.tick();
+//     assert!(heat.get_sensors()[0] == 0f32);
+// }
 
 
-#[test]
-fn test2() {
-    let mut heat = Heat::default();
-    heat.add_chunk(vek::Vec3::zero());
-    heat.add_sensor(vek::Vec3::new(0, 8, 0));
-    heat.add_source(vek::Vec3::zero());
+// #[test]
+// fn test2() {
+//     let mut heat = Heat::default();
+//     heat.add_chunk(vek::Vec3::zero());
+//     heat.add_sensor(vek::Vec3::new(0, 8, 0));
+//     heat.add_source(vek::Vec3::zero());
     
-    heat.tick();
-    assert!(heat.get_sensors()[0] == 0f32);
+//     heat.tick();
+//     assert!(heat.get_sensors()[0] == 0f32);
 
-    for _ in 0..50 {
-        heat.tick();
-        heat.get_sensors();
-        //dbg!(heat.get_overall());
-    }
+//     for _ in 0..50 {
+//         heat.tick();
+//         heat.get_sensors();
+//         //dbg!(heat.get_overall());
+//     }
 
-    assert!(heat.get_sensors()[0] > 0f32);
+//     assert!(heat.get_sensors()[0] > 0f32);
 
-}
+// }

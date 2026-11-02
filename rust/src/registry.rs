@@ -83,24 +83,24 @@ impl ItemBuilder {
     }
 }
 
-struct MultiRecipeBuilder {
+pub struct MultiRecipeBuilder {
     recipes: Vec<Recipe>,
     id: &'static str,
 }
 impl MultiRecipeBuilder {
-    fn new(id: &'static str) -> Self {
+    pub fn new(id: &'static str) -> Self {
         Self {
             id,
             recipes: Vec::new()
         }
     }
 
-    fn with(mut self, recipe: RecipeBuilder) -> Self {
+    pub fn with(mut self, recipe: RecipeBuilder) -> Self {
         self.recipes.push(recipe.build());
         self
     }
 
-    fn build(self) -> MultiRecipe {
+    pub fn build(self) -> MultiRecipe {
         MultiRecipe {
             id: self.id,
             recipes: ArrayVec::from_iter(self.recipes),
@@ -109,13 +109,13 @@ impl MultiRecipeBuilder {
 }
 
 
-struct RecipeBuilder {
+pub struct RecipeBuilder {
     recipe: Recipe,
     inputs: Vec<Item>,
-    outputs: Vec<Item>,
+    outputs: Vec<ItemGenerator>,
 }
 impl RecipeBuilder {
-    fn new(id: &'static str, ticks: u16, load: isize) -> Self {
+    pub fn new(id: &'static str, ticks: u16, load: isize) -> Self {
         Self {
             recipe: Recipe {
                 id,
@@ -130,17 +130,26 @@ impl RecipeBuilder {
         }
     }
 
-    fn input(mut self, item: Item) -> Self {
+    pub fn input(mut self, item: Item) -> Self {
         self.inputs.push(item);
         self
     }
 
-    fn output(mut self, item: Item) -> Self {
-        self.outputs.push(item);
+    pub fn output(mut self, item: Item) -> Self {
+        self.outputs.push(ItemGenerator::with_default(item));
         self
     }
 
-    fn build(self) -> Recipe {
+    pub fn output_with_properties(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>) -> Self {
+        self.outputs.push(ItemGenerator {
+            item_id,
+            min_max_stack_size,
+            min_max_dirtyness,
+        });
+        self
+    }
+
+    pub fn build(self) -> Recipe {
         let RecipeBuilder {
             mut recipe,
             inputs,
@@ -167,8 +176,8 @@ impl MinerRecipeBuilder {
         })
     }
 
-    fn add_possibility(mut self, item_id: u8, min_max_stack_size: std::ops::Range<u8>, min_max_dirtyness: std::ops::Range<u8>) -> Self {
-        self.0.outputs.push(MinerPossibleOutput {
+    fn add_possibility(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>) -> Self {
+        self.0.outputs.push(ItemGenerator {
             item_id,
             min_max_stack_size,
             min_max_dirtyness,
@@ -235,6 +244,12 @@ impl DefaultRegistry {
     pub fn build() -> Self {
         let mut reg = Self::empty();
 
+        let raw_coal = reg.insert_item(
+            ItemBuilder::new("raw coal 1", 255)
+            .with_model(ItemModel::OreMeshA)
+            .with_material(ItemMaterial::RawOre)
+        );
+
         let raw_iron = reg.insert_item(
             ItemBuilder::new("raw iron 1", 255)
             .with_model(ItemModel::OreMeshA)
@@ -283,9 +298,14 @@ impl DefaultRegistry {
         
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_iron", 128, 30)
-                .add_possibility(raw_iron, 1..5, 0..128)
-                .add_possibility(raw_iron_1, 1..5, 0..128)
-                .add_possibility(raw_iron_2, 1..5, 0..128)
+                .add_possibility(raw_iron, 1..=4, 0..=127)
+                .add_possibility(raw_iron_1, 1..=4, 0..=127)
+                .add_possibility(raw_iron_2, 1..=4, 0..=127)
+        );
+
+        reg.insert_miner_recipe(
+            MinerRecipeBuilder::new("mine_coal", 128, 30)
+                .add_possibility(raw_coal, 1..=4, 0..=127)
         );
 
         reg
@@ -323,12 +343,45 @@ pub struct RegistryItem<Data> {
     pub data: Data,
 }
 
+
+#[derive(Debug)]
+pub struct ItemGenerator {
+    pub item_id: u8,
+    pub min_max_stack_size: std::ops::RangeInclusive<u8>,
+    pub min_max_dirtyness: std::ops::RangeInclusive<u8>,
+}
+
+impl ItemGenerator {
+    pub(crate) fn with_default(item: Item) -> Self {
+
+        Self {
+            item_id: item.id,
+            min_max_stack_size: item.count..=item.count,
+            min_max_dirtyness: 0..=0,
+        }
+    }
+
+    pub(crate) fn generate(&self, rng: &mut fastrand::Rng) -> Item {
+        let mut item = Item::invalid();
+        item.id = self.item_id;
+        item.count = rng.u8(self.min_max_stack_size.clone());
+        item.fill_properties(|| {
+            crate::items::PropertiesForSingleItem {
+                temperature: 270,
+                dirtyness: rng.u8(self.min_max_dirtyness.clone()),
+            }
+        });
+        item
+    }
+}
+
+
 #[derive(Debug)]
 pub struct Recipe {
     pub id: &'static str,
     pub name: &'static str,
     pub input: Vec<Item>,
-    pub output: Vec<Item>,
+    pub output: Vec<ItemGenerator>,
     pub ticks: u16,
     pub load: LoadUnit,
 }
@@ -353,17 +406,10 @@ impl MultiRecipe {
 }
 
 #[derive(Debug)]
-pub struct MinerPossibleOutput {
-    pub item_id: u8,
-    pub min_max_stack_size: std::ops::Range<u8>,
-    pub min_max_dirtyness: std::ops::Range<u8>,
-}
-
-#[derive(Debug)]
 pub struct MinerRecipe {
     pub id: &'static str,
     pub name: &'static str,
-    pub outputs: Vec<MinerPossibleOutput>,
+    pub outputs: Vec<ItemGenerator>,
     pub ticks: u16,
     pub load: LoadUnit,
 }

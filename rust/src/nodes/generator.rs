@@ -1,5 +1,7 @@
 use crate::common::LoadUnit;
 
+use godot::classes::*;
+use godot::prelude::*;
 use super::*;
 
 #[derive(GodotClass)]

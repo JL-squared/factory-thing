@@ -134,7 +134,10 @@ impl GenericRecipe for MinerRecipe {
     }
 
     fn outputs(&self) -> Vec<PossiblyMultipleItems> {
-        let collection = self.outputs.iter().map(|x| Item::new(x.item_id, 1)).collect();
+        // return the WORST CASE size of the item
+        // this function is only used to check if there is space in the output hatch,
+        // so we must be rather conservative and make sure this holds for the maximally generated stack size
+        let collection = self.outputs.iter().map(|x| Item::new(x.item_id, *x.min_max_stack_size.end())).collect();
         vec![collection]
     }
 }
@@ -168,16 +171,7 @@ impl GenericMachine for Miner {
     fn do_thing_machine<R: Registry>(recipe: &Self::MultiRecipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         let hatch = &mut hatches[outputs[0]];
         if let Some(x) = rng.choice(recipe.outputs.iter()) {
-            let mut item = Item::invalid();
-            item.id = x.item_id;
-            item.count = rng.u8(x.min_max_stack_size.clone());
-            item.fill_properties(|| {
-                PropertiesForSingleItem {
-                    temperature: 270,
-                    dirtyness: rng.u8(x.min_max_dirtyness.clone()),
-                }
-            });
-            
+            let mut item = x.generate(rng);
             hatch.transfer_from_item_limited::<R>(&mut item, 255, registry);
 
             // item MUST have been taken completely, no remaining item count
@@ -203,7 +197,8 @@ impl GenericRecipe for Recipe {
     }
 
     fn outputs(&self) -> Vec<PossiblyMultipleItems> {
-        self.output.iter().map(|x| vec![*x]).collect()
+        let collection: Vec<Vec<Item>> = self.output.iter().map(|x| vec![Item::new(x.item_id, *x.min_max_stack_size.end())]).collect();
+        collection
     }
 }
 
@@ -259,7 +254,10 @@ impl GenericMachine for Machine {
             recipe.output.iter().zip(outputs.iter())
         {
             let hatch = &mut hatches[*hatch_output];
-            hatch.accumulate::<R>(recipe_output, registry);
+
+            let item = recipe_output.generate(rng);
+            
+            hatch.accumulate::<R>(&item, registry);
         }
     }
 }
@@ -308,6 +306,7 @@ pub fn pre_power_handle_generic_machine<R: registry::Registry, M: GenericMachine
         }
 
         if let Some(progress) = progress {
+            dbg!("what...");
             let recipe = multi_recipe.inner()[progress.recipe_index];
 
             // set the machine's consumer pole to enabled state

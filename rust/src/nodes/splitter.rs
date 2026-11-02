@@ -1,5 +1,8 @@
 use super::*;
 
+use godot::classes::*;
+use godot::prelude::*;
+
 #[derive(GodotClass)]
 #[class(base=Node3D)]
 pub struct SplitterNode {

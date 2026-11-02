@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use arrayvec::ArrayVec;
+
 use crate::{Item, Miner};
 use crate::common::*;
 
@@ -9,6 +11,7 @@ pub trait Registry {
 
     fn registry_item(&self, id: u8) -> &RegistryItem<Self::Data>;
     fn registry_recipe(&self, string_id: &str) -> &Recipe;
+    fn registry_multi_recipe(&self, string_id: &str) -> &MultiRecipe;
     fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe;
     fn list_registry_items(&self) -> impl Iterator<Item = &RegistryItem<Self::Data>> {
         std::iter::empty()
@@ -80,6 +83,32 @@ impl ItemBuilder {
     }
 }
 
+struct MultiRecipeBuilder {
+    recipes: Vec<Recipe>,
+    id: &'static str,
+}
+impl MultiRecipeBuilder {
+    fn new(id: &'static str) -> Self {
+        Self {
+            id,
+            recipes: Vec::new()
+        }
+    }
+
+    fn with(mut self, recipe: RecipeBuilder) -> Self {
+        self.recipes.push(recipe.build());
+        self
+    }
+
+    fn build(self) -> MultiRecipe {
+        MultiRecipe {
+            id: self.id,
+            recipes: ArrayVec::from_iter(self.recipes),
+        }
+    }
+}
+
+
 struct RecipeBuilder {
     recipe: Recipe,
     inputs: Vec<Item>,
@@ -91,8 +120,8 @@ impl RecipeBuilder {
             recipe: Recipe {
                 id,
                 name: id,
-                input: &[],
-                output: &[],
+                input: Vec::default(),
+                output: Vec::default(),
                 ticks,
                 load,
             },
@@ -109,6 +138,19 @@ impl RecipeBuilder {
     fn output(mut self, item: Item) -> Self {
         self.outputs.push(item);
         self
+    }
+
+    fn build(self) -> Recipe {
+        let RecipeBuilder {
+            mut recipe,
+            inputs,
+            outputs,
+        } = self;
+
+        recipe.input = inputs;
+        recipe.output = outputs;
+        
+        recipe
     }
 }
 
@@ -139,6 +181,7 @@ impl MinerRecipeBuilder {
 pub struct DefaultRegistry {
     items: Vec<RegistryItem<DefaultRegistryItemData>>,
     recipes: HashMap<String, Recipe>,
+    multi_recipes: HashMap<String, MultiRecipe>,
     miner_recipes: HashMap<String, MinerRecipe>,
 }
 
@@ -163,6 +206,7 @@ impl DefaultRegistry {
                 },
             ],
             recipes: Default::default(),
+            multi_recipes: Default::default(),
             miner_recipes: Default::default(),
         }
     }
@@ -178,17 +222,14 @@ impl DefaultRegistry {
     }
 
     fn insert_recipe(&mut self, builder: RecipeBuilder) {
-        let RecipeBuilder {
-            mut recipe,
-            inputs,
-            outputs,
-        } = builder;
+        self.insert_multi_recipe(MultiRecipeBuilder::new(builder.recipe.id).with(builder));
+        // let recipe = builder.build();
+        // self.recipes.insert(recipe.id.to_string(), recipe);
+    }
 
-        // safe-ish to do this because the registry lives as long as the program lives
-        recipe.input = inputs.leak::<'static>();
-        recipe.output = outputs.leak::<'static>();
-        
-        self.recipes.insert(recipe.id.to_string(), recipe);
+    fn insert_multi_recipe(&mut self, builder: MultiRecipeBuilder) {
+        let multi_recipe = builder.build();
+        self.multi_recipes.insert(multi_recipe.id.to_string(), multi_recipe);
     }
 
     pub fn build() -> Self {
@@ -230,7 +271,12 @@ impl DefaultRegistry {
             .with_material(ItemMaterial::Ingot)
         );
 
-        reg.insert_recipe(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron)).output(Item::one(crushed_iron)));
+
+        reg.insert_multi_recipe(MultiRecipeBuilder::new("crush_iron")
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_1)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_2)).output(Item::one(crushed_iron)))
+        );
         
         reg.insert_recipe(RecipeBuilder::new("crush_iron_more", 32, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)));
         reg.insert_recipe(RecipeBuilder::new("smelt_iron", 4, 1).input(Item::one(iron_dust)).output(Item::one(iron_ingot)));
@@ -257,6 +303,10 @@ impl Registry for DefaultRegistry {
         &self.recipes.get(string_id).expect(&format!("recipe '{string_id}' is not in registry"))
     }
 
+    fn registry_multi_recipe(&self, string_id: &str) -> &MultiRecipe {
+        &self.multi_recipes.get(string_id).expect(&format!("multi-recipe '{string_id}' is not in registry"))
+    }
+
     fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe {
         &self.miner_recipes.get(string_id).expect(&format!("miner recipe '{string_id}' is not in registry"))
     }
@@ -277,12 +327,30 @@ pub struct RegistryItem<Data> {
 pub struct Recipe {
     pub id: &'static str,
     pub name: &'static str,
-    pub input: &'static [Item],
-    pub output: &'static [Item],
+    pub input: Vec<Item>,
+    pub output: Vec<Item>,
     pub ticks: u16,
     pub load: LoadUnit,
 }
 
+
+#[derive(Debug)]
+pub struct MultiRecipe {
+    pub id: &'static str,
+    pub recipes: ArrayVec<Recipe, 32>,
+}
+impl MultiRecipe {
+    pub(crate) fn new(recipe: Recipe) -> Self {
+        Self {
+            id: recipe.id,
+            recipes: {
+                let mut vec = ArrayVec::<Recipe, 32>::new_const();
+                vec.push(recipe);
+                vec
+            },
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct MinerPossibleOutput {

@@ -17,6 +17,7 @@ use crate::items::*;
 #[derive(Debug)]
 pub struct Progress {
     pub ticks_remaining: NonZeroU16,
+    pub recipe_index: usize,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -56,8 +57,8 @@ pub struct Miner {
 }
 
 
-pub struct Commons<'a, R: GenericRecipe> {
-    recipe: &'a R,
+pub struct Commons<'a, R: GenericMultiRecipe> {
+    multi_recipe: &'a R,
     consumer_pole_id: PoleKey,
     internal_power_buffer: &'a mut LoadUnit,
     status: &'a mut MachineStatus,
@@ -71,6 +72,11 @@ pub struct Commons<'a, R: GenericRecipe> {
 
 type PossiblyMultipleItems = Vec<Item>;
 
+pub trait GenericMultiRecipe {
+    type T: GenericRecipe;
+    fn inner(&self) -> Vec<&Self::T>;
+}
+
 pub trait GenericRecipe {
     fn load(&self) -> LoadUnit;
     fn ticks(&self) -> u16;
@@ -80,9 +86,9 @@ pub trait GenericRecipe {
 
 pub trait GenericMachine {
     type Key: slotmap::Key;
-    type Recipe: GenericRecipe;
+    type MultiRecipe: GenericMultiRecipe;
 
-    fn check_machine_input_requirements_valid(recipe: &Self::Recipe, inputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>) -> bool {
+    fn check_machine_input_requirements_valid(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>) -> bool {
         recipe.inputs().iter().zip(inputs.iter()).all(
             |(recipe_input_item, input_hatch)| {
                 hatches[*input_hatch].input_item_requirement(recipe_input_item)
@@ -90,7 +96,7 @@ pub trait GenericMachine {
         )
     }
 
-    fn check_machine_output_requirements_valid<R: Registry>(recipe: &Self::Recipe, outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, registry: &R) -> bool {
+    fn check_machine_output_requirements_valid<R: Registry>(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, registry: &R) -> bool {
         recipe.outputs().iter().zip(outputs.iter()).all(
             |(multiple_possible_output_items, output_hatch)| {
                 let hatch = &hatches[*output_hatch];
@@ -106,8 +112,12 @@ pub trait GenericMachine {
         )
     }
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe>;
-    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
+    fn check_subrecipe_configuration_requirement_valid(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, configuration: ()) -> bool {
+        true
+    }
+
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe>;
+    fn do_thing_machine<R: Registry>(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
 }
 
 impl GenericRecipe for MinerRecipe {
@@ -129,14 +139,22 @@ impl GenericRecipe for MinerRecipe {
     }
 }
 
+impl GenericMultiRecipe for MinerRecipe {
+    type T = Self;
+
+    fn inner(&self) -> Vec<&Self::T> {
+        vec![self]
+    }
+}
+
 impl GenericMachine for Miner {
     type Key = MinerKey;
-    type Recipe = MinerRecipe;
+    type MultiRecipe = MinerRecipe;
 
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe> {
         Commons {
-            recipe: registry.registry_miner_recipe(self.recipe.as_ref().unwrap()),
+            multi_recipe: registry.registry_miner_recipe(self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
             internal_power_buffer: &mut self.internal_power_buffer,
             status: &mut self.status,
@@ -147,7 +165,7 @@ impl GenericMachine for Miner {
         }
     }
 
-    fn do_thing_machine<R: Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
+    fn do_thing_machine<R: Registry>(recipe: &Self::MultiRecipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         let hatch = &mut hatches[outputs[0]];
         if let Some(x) = rng.choice(recipe.outputs.iter()) {
             let mut item = Item::invalid();
@@ -189,14 +207,30 @@ impl GenericRecipe for Recipe {
     }
 }
 
+impl GenericMultiRecipe for Recipe {
+    type T = Self;
+
+    fn inner(&self) -> Vec<&Self::T> {
+        vec![self]
+    }
+}
+
+impl GenericMultiRecipe for MultiRecipe {
+    type T = Recipe;
+
+    fn inner(&self) -> Vec<&Self::T> {
+        self.recipes.iter().collect::<Vec<_>>()
+    }
+} 
+
 impl GenericMachine for Machine {
     type Key = MachineKey;
-    type Recipe = Recipe;
+    type MultiRecipe = MultiRecipe;
 
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::Recipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe> {
         Commons {
-            recipe: registry.registry_recipe(&self.recipe.as_ref().unwrap()),
+            multi_recipe: registry.registry_multi_recipe(self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
             internal_power_buffer: &mut self.internal_power_buffer,
             status: &mut self.status,
@@ -207,13 +241,7 @@ impl GenericMachine for Machine {
         }
     }
 
-
-        // fn cock(){
-        //     nrmod [rmod in yy & mut hatch = hato/oyrt)_
-        //     // who the fuck wrote that???]
-        // }
-
-    fn do_thing_machine<R: registry::Registry>(recipe: &Self::Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
+    fn do_thing_machine<R: registry::Registry>(recipe: &Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         // machine finished the recipe (remaining ticks is zero, but no need to update it, as we invalidate `progress` anyways)
         // take items from input hatches
         for (recipe_input, hatch_input) in
@@ -236,11 +264,10 @@ impl GenericMachine for Machine {
     }
 }
 
-
-pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &mut SlotMap<M::Key, M>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng, registry: &R) {
+pub fn pre_power_handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &mut SlotMap<M::Key, M>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng, registry: &R) {
     for machine in machines.values_mut() {
         let Commons {
-            recipe,
+            multi_recipe,
             consumer_pole_id,
             internal_power_buffer,
             status,
@@ -250,38 +277,85 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
             outputs
         } = machine.get_commons(registry);
 
-        // set the machine's consumer pole to enabled state
-        let given_load = match poles[consumer_pole_id] {
-            Pole::Consumer { current_load, .. } => current_load,
-            _ => unreachable!()
-        };
+        if progress.is_none() {
+            // linear search through all the sub-recipes until we find one that we can execute...
+            for (recipe_index, recipe) in multi_recipe.inner().iter().enumerate() {
+                let inputs_match_recipe_input = M::check_machine_input_requirements_valid(recipe, &inputs, hatches);
+                let outputs_match_recipe_output = M::check_machine_output_requirements_valid(recipe, &outputs, hatches, registry);
 
-        *internal_power_buffer += given_load;
+                // TODO: implement machine configuration
+                let configuration_matches = M::check_subrecipe_configuration_requirement_valid(recipe, ());
 
-        // try to buffer 2 recipes worth of power in internal power buffer
-        if *internal_power_buffer < recipe.load() * 2 {
-            poles[consumer_pole_id] = Pole::Consumer {
-                target_load: recipe.load(),
-                current_load: 0,
+                if inputs_match_recipe_input && outputs_match_recipe_output && configuration_matches {
+                    // godot::global::godot_print!("new progress");
+                    // TODO: should we consume the input items (if any) here, instead of waiting till the recipe is complete first?
+
+                    progress.replace(Progress {
+                        ticks_remaining: NonZeroU16::new(recipe.ticks())
+                            .expect("recipe ticks must not be zero"),
+                        recipe_index,
+                    });
+                } else {
+                    if !inputs_match_recipe_input {
+                        *status = MachineStatus::RecipeInputResourcesMismatchOrEmpty;
+                    }
+
+                    if !outputs_match_recipe_output {
+                        *status = MachineStatus::RecipeOutputResourcesMismatchOrFull;
+                    }
+                }
+            }
+        }
+
+        if let Some(progress) = progress {
+            let recipe = multi_recipe.inner()[progress.recipe_index];
+
+            // set the machine's consumer pole to enabled state
+            let given_load = match poles[consumer_pole_id] {
+                Pole::Consumer { current_load, .. } => current_load,
+                _ => unreachable!()
             };
-        } else {
-            poles[consumer_pole_id] = Pole::Consumer {
-                target_load: 0,
-                current_load: 0,
-            };
+
+            *internal_power_buffer += given_load;
+
+            // try to buffer 2 recipes worth of power in internal power buffer
+            if *internal_power_buffer < recipe.load() * 2 {
+                poles[consumer_pole_id] = Pole::Consumer {
+                    target_load: recipe.load(),
+                    current_load: 0,
+                };
+            } else {
+                poles[consumer_pole_id] = Pole::Consumer {
+                    target_load: 0,
+                    current_load: 0,
+                };
+            }
         }
 
-        if settings.machine_require_clicky_thing_attached && !clicky_thing_attached {
-            *status = MachineStatus::ClickyThingNotAttached;
-            continue;
-        }
+    }
+}
 
-        if settings.machine_require_power && *internal_power_buffer < recipe.load() {
-            *status = MachineStatus::NonPowered;
-            continue;
-        }
+pub fn post_power_handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines: &mut SlotMap<M::Key, M>, poles: &mut SlotMap<PoleKey, Pole>, hatches: &mut SlotMap<HatchKey, Hatch>, settings: &mut Settings, rng: &mut Rng, registry: &R) {
+    for machine in machines.values_mut() {
+        let Commons {
+            multi_recipe,
+            consumer_pole_id,
+            internal_power_buffer,
+            status,
+            clicky_thing_attached,
+            progress,
+            inputs,
+            outputs
+        } = machine.get_commons(registry);
 
         if let Some(valid_progress) = progress.as_mut() {
+            let recipe = multi_recipe.inner()[valid_progress.recipe_index];
+            if settings.machine_require_power && *internal_power_buffer < recipe.load() {
+                *status = MachineStatus::NonPowered;
+                continue;
+            }
+
+            
             // check internal power buffer
             *status = MachineStatus::None;
             *internal_power_buffer -= recipe.load();
@@ -300,34 +374,6 @@ pub fn handle_generic_machine<R: registry::Registry, M: GenericMachine>(machines
 
                 // reset machine progress
                 progress.take().unwrap();
-            }
-        }
-
-        if progress.is_none() {
-            // assert_eq!(recipe.input.len(), machine.input.len(), "machine recipe input items count and input hatches count do not match");
-            // assert_eq!(recipe.output.len(), machine.output.len(), "machine recipe output items count and output hatches count do not match");
-            let inputs_match_recipe_input = M::check_machine_input_requirements_valid(recipe, &inputs, hatches);
-                
-            let outputs_match_recipe_output = M::check_machine_output_requirements_valid(recipe, &outputs, hatches, registry);
-                
-
-            // if requirements are met, then we can begin machine progress
-            if inputs_match_recipe_input && outputs_match_recipe_output {
-                if progress.is_none() {
-                    // godot::global::godot_print!("new progress");
-                    progress.replace(Progress {
-                        ticks_remaining: NonZeroU16::new(recipe.ticks())
-                            .expect("recipe ticks must not be zero"),
-                    });
-                }
-            } else {
-                if !inputs_match_recipe_input {
-                    *status = MachineStatus::RecipeInputResourcesMismatchOrEmpty;
-                }
-
-                if !outputs_match_recipe_output {
-                    *status = MachineStatus::RecipeOutputResourcesMismatchOrFull;
-                }
             }
         }
     }

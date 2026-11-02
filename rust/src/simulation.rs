@@ -59,6 +59,10 @@ impl<R: registry::Registry> Simulation<R> {
             ..
         } = self;
 
+
+        pre_power_handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng, &registry);
+        pre_power_handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng, &registry);
+
         handle_wire_damage(wires, settings);
 
         handle_power(poles, wires);
@@ -79,8 +83,8 @@ impl<R: registry::Registry> Simulation<R> {
         handle_belts::<R>(belts, hatches, tick, settings, &registry);
         handle_pipes::<R>(pipes, fluid_hatches, tick, settings);
 
-        handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng, &registry);
-        handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng, &registry);
+        post_power_handle_generic_machine::<R, Machine>(machines, poles, hatches, settings, rng, &registry);
+        post_power_handle_generic_machine::<R, Miner>(miners, poles, hatches, settings, rng, &registry);
 
         handle_silos::<R>(hatches, silos, settings, &registry);
         handle_splitters::<R>(hatches, splitters, settings, &registry);
@@ -309,12 +313,12 @@ impl<R: registry::Registry> Simulation<R> {
     }
     
     
-    pub fn get_input_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Item {
-        &mut self.hatches[self.machines[machine_id].input[hatch_index]].buffer[0]
+    pub fn get_input_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Hatch {
+        &mut self.hatches[self.machines[machine_id].input[hatch_index]]
     }
 
-    pub fn get_output_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Item {
-        &mut self.hatches[self.machines[machine_id].output[hatch_index]].buffer[0]
+    pub fn get_output_hatch_mut(&mut self, machine_id: MachineKey, hatch_index: usize) -> &mut Hatch {
+        &mut self.hatches[self.machines[machine_id].output[hatch_index]]
     }
 
     pub fn add_source(&mut self, source_item: Item) -> HatchKey {

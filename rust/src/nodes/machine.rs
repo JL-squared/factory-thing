@@ -99,9 +99,10 @@ impl MachineNode {
         let machine = &bound.game.machines[self.key];
 
         let registry = &bound.game.registry;
-        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
+        // let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
+        // let string = format!("machine. recipe: '{}'. status: {:?}", recipe.id, machine.status);
         
-        let string = format!("machine. recipe: '{}'. status: {:?}", recipe.id, machine.status);
+        let string = String::new();
         
         GString::from_str(&string).unwrap()
     }
@@ -130,10 +131,11 @@ impl MachineNode {
         let machine = &bound.game.machines[self.key];
 
         let registry = &bound.game.registry;
-        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
+        let multi_recipe = registry.registry_multi_recipe(machine.recipe.as_ref().unwrap());
 
         let progress = match &machine.progress {
             Some(progress) => {
+                let recipe = &multi_recipe.recipes[progress.recipe_index];
                 let remaining = progress.ticks_remaining.get();
                 let total = recipe.ticks;
                 let current = (total - remaining) as f32;
@@ -157,11 +159,11 @@ impl MachineNode {
         let machine = &bound.game.machines[self.key];
 
         let registry = &bound.game.registry;
-        let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
+        let multi_recipe = registry.registry_multi_recipe(machine.recipe.as_ref().unwrap());
 
+        // let string = format!("{} + {} EU/t => {} ({}t)", recipe.input[0].display::<DefaultRegistry>(registry), recipe.load, recipe.output[0].display::<DefaultRegistry>(registry), recipe.ticks);
+        let string = String::new();
 
-        let string = format!("{} + {} EU/t => {} ({}t)", recipe.input[0].display::<DefaultRegistry>(registry), recipe.load, recipe.output[0].display::<DefaultRegistry>(registry), recipe.ticks);
-        
         GString::from_str(&string).unwrap()
     }
 

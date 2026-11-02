@@ -310,6 +310,10 @@ mod item_tests {
         fn registry_recipe(&self, string_id: &str) -> &registry::Recipe {
             todo!()
         }
+
+        fn registry_multi_recipe(&self, string_id: &str) -> &registry::MultiRecipe {
+            todo!()
+        }
         
         fn registry_miner_recipe(&self, string_id: &str) -> &registry::MinerRecipe {
             todo!()

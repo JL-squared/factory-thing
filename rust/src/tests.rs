@@ -1,13 +1,55 @@
 #[cfg(test)]
 mod test_registry {
-    use crate::Simulation;
+    use std::collections::HashMap;
+
+use crate::Simulation;
     use crate::common::LoadUnit;
     use crate::common::Settings;
     use crate::registry::*;
     use crate::items::*;
 
-    #[derive(Default)]
-    pub struct TestRegistry;    
+    pub struct TestRegistry(HashMap<String, MultiRecipe>);
+
+    impl Default for TestRegistry {
+        fn default() -> Self {
+            let mut hashmap: HashMap<String, MultiRecipe> = HashMap::<String, MultiRecipe>::new();
+
+            let crush_iron_recipe: Recipe = Recipe {
+                id: "crush_iron",
+                name: "",
+                input: vec![Item::one(Self::RAW_IRON_1)],
+                output: vec![Item::one(Self::CRUSHED_IRON)],
+                ticks: 16,
+                load: 10,
+            };  
+
+            let crush_iron_more_recipe: Recipe = Recipe {
+                id: "crush_iron_more",
+                name: "",
+                input: vec![Item::one(Self::CRUSHED_IRON)],
+                output: vec![Item::one(Self::IRON_DUST)],
+                ticks: 16,
+                load: 10,
+            };  
+
+            let smelt_iron_recipe: Recipe = Recipe {
+                id: "smelt_iron",
+                name: "",
+                input: vec![Item::one(Self::IRON_DUST)],
+                output: vec![Item::one(Self::IRON_INGOT)],
+                ticks: 4,
+                load: 0,
+            };
+
+            let recipes = [MultiRecipe::new(crush_iron_recipe), MultiRecipe::new(crush_iron_more_recipe), MultiRecipe::new(smelt_iron_recipe)];
+            
+            for recipe in recipes {
+                hashmap.insert(recipe.id.to_string(), recipe);
+            }
+
+            Self(hashmap)
+        }
+    }
 
     impl TestRegistry {
         pub const RAW_IRON_1: u8 = 1;
@@ -42,33 +84,6 @@ mod test_registry {
                 data: ()
             },
         ];  
-
-        pub const CRUSH_IRON_RECIPE: Recipe = Recipe {
-            id: "crush_iron",
-            name: "",
-            input: &[Item::one(Self::RAW_IRON_1)],
-            output: &[Item::one(Self::CRUSHED_IRON)],
-            ticks: 16,
-            load: 10,
-        };  
-
-        pub const CRUSH_IRON_MORE_RECIPE: Recipe = Recipe {
-            id: "crush_iron_more",
-            name: "",
-            input: &[Item::one(Self::CRUSHED_IRON)],
-            output: &[Item::one(Self::IRON_DUST)],
-            ticks: 16,
-            load: 10,
-        };  
-
-        pub const SMELT_IRON_RECIPE: Recipe = Recipe {
-            id: "smelt_iron",
-            name: "",
-            input: &[Item::one(Self::IRON_DUST)],
-            output: &[Item::one(Self::IRON_INGOT)],
-            ticks: 4,
-            load: 0,
-        };
     }   
 
     impl Registry for TestRegistry {
@@ -79,8 +94,11 @@ mod test_registry {
         }
 
         fn registry_recipe(&self, string_id: &str) -> &Recipe {
-            static RECIPES: &[Recipe] = &[TestRegistry::CRUSH_IRON_RECIPE, TestRegistry::CRUSH_IRON_MORE_RECIPE, TestRegistry::SMELT_IRON_RECIPE];
-            RECIPES.iter().find(|recipe| recipe.id == string_id).expect(&format!("recipe {string_id} not in registry"))
+            todo!()
+        }
+
+        fn registry_multi_recipe(&self, string_id: &str) -> &MultiRecipe {
+            &self.0[string_id]
         }
         
         fn registry_miner_recipe(&self, string_id: &str) -> &MinerRecipe {
@@ -399,8 +417,10 @@ mod power_tests {
         let a = game.add_generator(10);
         let (m, b) = game.add_machine("crush_iron".to_string());
         
-        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
-        *game.get_output_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON, &game.registry);
+        let item1 = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
+        game.get_input_hatch_mut(m, 0).fill(item1);
+        let item2 = Item::full_stack::<TestRegistry>(TestRegistry::CRUSHED_IRON, &game.registry);
+        game.get_output_hatch_mut(m, 0).fill(item2);
 
 
         let wire = game.add_wire(a,b);
@@ -415,8 +435,11 @@ mod power_tests {
         let a = game.add_generator(10);
         let (m, b) = game.add_machine("crush_iron".to_string());
         
-        *game.get_input_hatch_mut(m, 0) = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
-        *game.get_output_hatch_mut(m, 0) = Item::one(TestRegistry::RAW_IRON_1);
+        let item1 = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
+        let item2 = Item::full_stack::<TestRegistry>(TestRegistry::RAW_IRON_1, &game.registry);
+
+        game.get_input_hatch_mut(m, 0).fill(item1);
+        game.get_output_hatch_mut(m, 0).fill(item2);
 
 
         let wire = game.add_wire(a,b);

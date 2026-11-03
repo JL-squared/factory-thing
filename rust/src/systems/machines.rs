@@ -57,20 +57,26 @@ pub struct Miner {
 }
 
 
-pub struct Commons<'a, R: GenericMultiRecipe> {
+pub struct Commons<'a, M: GenericMachine, R: GenericMultiRecipe> {
     multi_recipe: &'a R,
     consumer_pole_id: PoleKey,
     internal_power_buffer: &'a mut LoadUnit,
     status: &'a mut MachineStatus,
     clicky_thing_attached: bool,
     progress: &'a mut Option<Progress>,
+    data: Option<&'a mut M::Data>,
 
     inputs: Vec<HatchKey>,
     outputs: Vec<HatchKey>,
     
 }
 
-type PossiblyMultipleItems = Vec<Item>;
+pub struct WorstCaseItemWSize {
+    id: u8,
+    worst_case_stack_size: u8
+}
+
+type PossiblyMultipleItems = Vec<WorstCaseItemWSize>;
 
 pub trait GenericMultiRecipe {
     type T: GenericRecipe;
@@ -87,6 +93,7 @@ pub trait GenericRecipe {
 pub trait GenericMachine {
     type Key: slotmap::Key;
     type MultiRecipe: GenericMultiRecipe;
+    type Data;
 
     fn check_machine_input_requirements_valid(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>) -> bool {
         recipe.inputs().iter().zip(inputs.iter()).all(
@@ -106,7 +113,8 @@ pub trait GenericMachine {
 
                 // if we have multiple different output items (weighted probability), then make sure that ALL of those items can be outputted from the machine
                 multiple_possible_output_items.iter().all(|single_item| {
-                    hatch.can_accumulate_from_without_partial_takes_overflow_conservative(single_item, registry)
+                    let worst_case_item = &Item::new(single_item.id, single_item.worst_case_stack_size);
+                    hatch.can_accumulate_from_without_partial_takes_overflow_conservative(&worst_case_item, registry)
                 })
             },
         )
@@ -116,8 +124,10 @@ pub trait GenericMachine {
         true
     }
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe>;
-    fn do_thing_machine<R: Registry>(recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self, Self::MultiRecipe> where Self: Sized;
+    fn on_start_progress<R: Registry>(data: Option<&mut Self::Data>, recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
+    fn on_end_progress<R: Registry>(data: Option<&mut Self::Data>, recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {}
+
 }
 
 impl GenericRecipe for MinerRecipe {
@@ -137,7 +147,10 @@ impl GenericRecipe for MinerRecipe {
         // return the WORST CASE size of the item
         // this function is only used to check if there is space in the output hatch,
         // so we must be rather conservative and make sure this holds for the maximally generated stack size
-        let collection = self.outputs.iter().map(|x| Item::new(x.item_id, *x.min_max_stack_size.end())).collect();
+        let collection = self.outputs.iter().map(|x| WorstCaseItemWSize {
+            id: x.item_id,
+            worst_case_stack_size: *x.min_max_stack_size.end()
+        }).collect();
         vec![collection]
     }
 }
@@ -153,9 +166,10 @@ impl GenericMultiRecipe for MinerRecipe {
 impl GenericMachine for Miner {
     type Key = MinerKey;
     type MultiRecipe = MinerRecipe;
+    type Data=();
 
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self, Self::MultiRecipe> {
         Commons {
             multi_recipe: registry.registry_miner_recipe(self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
@@ -163,20 +177,26 @@ impl GenericMachine for Miner {
             status: &mut self.status,
             clicky_thing_attached: self.clicky_thing_attached,
             progress: &mut self.progress,
+            data: None,
             inputs: Vec::default(),
             outputs: vec![self.output]
         }
     }
 
-    fn do_thing_machine<R: Registry>(recipe: &Self::MultiRecipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
+    fn on_start_progress<R: Registry>(data: Option<&mut Self::Data>, recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
+
+    }
+    
+    fn on_end_progress<R: Registry>(data: Option<&mut Self::Data>, recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         let hatch = &mut hatches[outputs[0]];
         if let Some(x) = rng.choice(recipe.outputs.iter()) {
-            let mut item = x.generate(rng);
-            hatch.transfer_from_item_limited::<R>(&mut item, 255, registry);
+            if let Some(mut item) = x.generate(rng) {
+                hatch.transfer_from_item_limited::<R>(&mut item, 255, registry);
 
-            // item MUST have been taken completely, no remaining item count
-            assert_eq!(item.count, 0);
-            assert!(item.is_invalid());
+                // item MUST have been taken completely, no remaining item count
+                assert_eq!(item.count, 0);
+                assert!(item.is_invalid());
+            }
         }
     }
 }
@@ -197,7 +217,10 @@ impl GenericRecipe for Recipe {
     }
 
     fn outputs(&self) -> Vec<PossiblyMultipleItems> {
-        let collection: Vec<Vec<Item>> = self.output.iter().map(|x| vec![Item::new(x.item_id, *x.min_max_stack_size.end())]).collect();
+        let collection: Vec<PossiblyMultipleItems> = self.output.iter().map(|x| x.iter().map(|x| WorstCaseItemWSize {
+            id: x.item_id,
+            worst_case_stack_size: *x.min_max_stack_size.end()
+        }).collect::<Vec<_>>()).collect();
         collection
     }
 }
@@ -221,9 +244,10 @@ impl GenericMultiRecipe for MultiRecipe {
 impl GenericMachine for Machine {
     type Key = MachineKey;
     type MultiRecipe = MultiRecipe;
+    type Data = ();
 
 
-    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self::MultiRecipe> {
+    fn get_commons<'a, R: Registry>(&'a mut self, registry: &'a R) -> Commons<'a, Self, Self::MultiRecipe> {
         Commons {
             multi_recipe: registry.registry_multi_recipe(self.recipe.as_ref().unwrap()),
             consumer_pole_id: self.pole.unwrap(),
@@ -231,12 +255,13 @@ impl GenericMachine for Machine {
             status: &mut self.status,
             clicky_thing_attached: self.clicky_thing_attached,
             progress: &mut self.progress,
+            data: None,
             inputs: self.input.clone(),
             outputs: self.output.clone()
         }
     }
 
-    fn do_thing_machine<R: registry::Registry>(recipe: &Recipe, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
+    fn on_end_progress<R: Registry>(data: Option<&mut Self::Data>, recipe: &<Self::MultiRecipe as GenericMultiRecipe>::T, inputs: &[HatchKey], outputs: &[HatchKey], hatches: &mut SlotMap<HatchKey, Hatch>, rng: &mut Rng, registry: &R) {
         // machine finished the recipe (remaining ticks is zero, but no need to update it, as we invalidate `progress` anyways)
         // take items from input hatches
         for (recipe_input, hatch_input) in
@@ -250,14 +275,21 @@ impl GenericMachine for Machine {
         }
 
         // put items in output hatches
-        for (recipe_output, hatch_output) in
+        for (possibly_multiple_recipe_output, hatch_output) in
             recipe.output.iter().zip(outputs.iter())
         {
             let hatch = &mut hatches[*hatch_output];
 
-            let item = recipe_output.generate(rng);
-            
-            hatch.accumulate::<R>(&item, registry);
+            // LOL yk what would be funny
+            // if the hatch is full here, we can just. "break" the machine
+            // force it to go into a broken state or something
+            for recipe_output in possibly_multiple_recipe_output {
+
+                // only accumulate the item if the probability check passes
+                if let Some(item) = recipe_output.generate(rng) {
+                    hatch.accumulate::<R>(&item, registry);
+                }
+            }
         }
     }
 }
@@ -272,6 +304,7 @@ pub fn pre_power_handle_generic_machine<R: registry::Registry, M: GenericMachine
             clicky_thing_attached,
             progress,
             inputs,
+            data,
             outputs
         } = machine.get_commons(registry);
 
@@ -293,6 +326,10 @@ pub fn pre_power_handle_generic_machine<R: registry::Registry, M: GenericMachine
                             .expect("recipe ticks must not be zero"),
                         recipe_index,
                     });
+                        
+                    M::on_start_progress::<R>(data, recipe, &inputs, &outputs, hatches, rng, registry);
+                    *status = MachineStatus::None;
+                    break;
                 } else {
                     if !inputs_match_recipe_input {
                         *status = MachineStatus::RecipeInputResourcesMismatchOrEmpty;
@@ -306,7 +343,6 @@ pub fn pre_power_handle_generic_machine<R: registry::Registry, M: GenericMachine
         }
 
         if let Some(progress) = progress {
-            dbg!("what...");
             let recipe = multi_recipe.inner()[progress.recipe_index];
 
             // set the machine's consumer pole to enabled state
@@ -344,6 +380,7 @@ pub fn post_power_handle_generic_machine<R: registry::Registry, M: GenericMachin
             clicky_thing_attached,
             progress,
             inputs,
+            data,
             outputs
         } = machine.get_commons(registry);
 
@@ -369,7 +406,7 @@ pub fn post_power_handle_generic_machine<R: registry::Registry, M: GenericMachin
                 valid_progress.ticks_remaining = non_zero;
             } else {
                 // the thing that the machine does at the end of progress
-                M::do_thing_machine::<R>(recipe, &inputs, &outputs, hatches, rng, registry);
+                M::on_end_progress::<R>(data, recipe, &inputs, &outputs, hatches, rng, registry);
 
                 // reset machine progress
                 progress.take().unwrap();

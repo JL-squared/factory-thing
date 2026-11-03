@@ -19,6 +19,8 @@ pub struct AveragedPropertiesForStack {
 }
 
 
+// TODO: probably compress this at runtime
+// probably using some sort of RLE
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Properties {
     // kelvin    

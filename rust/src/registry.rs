@@ -55,6 +55,7 @@ impl ItemBuilder {
                 data: DefaultRegistryItemData {
                     item_model_resource: "",
                     item_material_resource: "",
+                    flags: RegistryItemFlags::empty()
                 }
             }
         }
@@ -79,6 +80,11 @@ impl ItemBuilder {
             ItemMaterial::CrushedOre => "res://materials/crushed_ore.tres",
             ItemMaterial::Ingot => "res://materials/ingot.tres",
         };
+        self
+    }
+
+    fn with_flags(mut self, flags: RegistryItemFlags) -> Self {
+        self.item.data.flags = flags;
         self
     }
 }
@@ -112,7 +118,7 @@ impl MultiRecipeBuilder {
 pub struct RecipeBuilder {
     recipe: Recipe,
     inputs: Vec<Item>,
-    outputs: Vec<ItemGenerator>,
+    outputs: Vec<Vec<ItemGenerator>>,
 }
 impl RecipeBuilder {
     pub fn new(id: &'static str, ticks: u16, load: isize) -> Self {
@@ -136,18 +142,26 @@ impl RecipeBuilder {
     }
 
     pub fn output(mut self, item: Item) -> Self {
-        self.outputs.push(ItemGenerator::with_default(item));
+        self.outputs.push(vec![ItemGenerator::with_default(item)]);
         self
     }
 
-    pub fn output_with_properties(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>) -> Self {
+    pub fn output_2<const N: usize>(mut self, items: [ItemGenerator; N]) -> Self {
+        self.outputs.push(items.into_iter().collect());
+        self
+    }
+    /*
+
+    pub fn output_with_properties(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>, probability: Option<f32>) -> Self {
         self.outputs.push(ItemGenerator {
             item_id,
             min_max_stack_size,
             min_max_dirtyness,
+            probability
         });
         self
     }
+    */
 
     pub fn build(self) -> Recipe {
         let RecipeBuilder {
@@ -176,11 +190,12 @@ impl MinerRecipeBuilder {
         })
     }
 
-    fn add_possibility(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>) -> Self {
+    fn add_possibility(mut self, item_id: u8, min_max_stack_size: std::ops::RangeInclusive<u8>, min_max_dirtyness: std::ops::RangeInclusive<u8>, probability: Option<f32>) -> Self {
         self.0.outputs.push(ItemGenerator {
             item_id,
             min_max_stack_size,
             min_max_dirtyness,
+            probability
         });
         self
     }
@@ -194,10 +209,21 @@ pub struct DefaultRegistry {
     miner_recipes: HashMap<String, MinerRecipe>,
 }
 
+bitflags::bitflags! {
+    pub struct RegistryItemFlags: u32 {
+        const RAW = 1 << 0;
+        const DUST = 1 << 1;
+        const INGOT = 1 << 2;
+        
+        const CONDUCTIVE = 1 << 30;
+        const MAGNETIC = 1 << 31;
+    }
+}
 
 pub struct DefaultRegistryItemData {
     pub item_model_resource: &'static str,
     pub item_material_resource: &'static str,
+    pub flags: RegistryItemFlags,
 }
 
 
@@ -211,6 +237,7 @@ impl DefaultRegistry {
                     data: DefaultRegistryItemData {
                         item_model_resource: "",
                         item_material_resource: "",
+                        flags: RegistryItemFlags::empty(),
                     },
                 },
             ],
@@ -245,52 +272,74 @@ impl DefaultRegistry {
         let mut reg = Self::empty();
 
         let raw_coal = reg.insert_item(
-            ItemBuilder::new("raw coal 1", 255)
+            ItemBuilder::new("raw coal", 255)
             .with_model(ItemModel::OreMeshA)
             .with_material(ItemMaterial::RawOre)
+            .with_flags(RegistryItemFlags::RAW)
+        );
+
+        let crushed_coal = reg.insert_item(
+            ItemBuilder::new("crushed coal", 255)
+            .with_model(ItemModel::DustMeshA)
+            .with_material(ItemMaterial::CrushedOre)
+            .with_flags(RegistryItemFlags::RAW)
         );
 
         let raw_iron = reg.insert_item(
             ItemBuilder::new("raw iron 1", 255)
             .with_model(ItemModel::OreMeshA)
             .with_material(ItemMaterial::RawOre)
+            .with_flags(RegistryItemFlags::RAW)
         );
 
         let raw_iron_1 = reg.insert_item(
             ItemBuilder::new("raw iron 2", 255)
             .with_model(ItemModel::OreMeshB)
             .with_material(ItemMaterial::RawOre)
+            .with_flags(RegistryItemFlags::RAW)
         );
 
         let raw_iron_2 = reg.insert_item(
             ItemBuilder::new("raw iron 3", 255)
             .with_model(ItemModel::OreMeshC)
             .with_material(ItemMaterial::RawOre)
+            .with_flags(RegistryItemFlags::RAW)
         );
 
         let crushed_iron = reg.insert_item(
             ItemBuilder::new("crushed iron", 255)
             .with_model(ItemModel::DustMeshA)
             .with_material(ItemMaterial::CrushedOre)
+            .with_flags(RegistryItemFlags::RAW)
         );
 
         let iron_dust = reg.insert_item(
             ItemBuilder::new("iron dust", 255)
             .with_model(ItemModel::DustMeshB)
             .with_material(ItemMaterial::CrushedOre)
+            .with_flags(RegistryItemFlags::DUST | RegistryItemFlags::MAGNETIC)
         );
 
         let iron_ingot = reg.insert_item(
             ItemBuilder::new("iron ingot", 255)
             .with_model(ItemModel::IngotMesh)
             .with_material(ItemMaterial::Ingot)
+            .with_flags(RegistryItemFlags::INGOT | RegistryItemFlags::MAGNETIC | RegistryItemFlags::CONDUCTIVE)
         );
 
 
+        let what = [ItemGenerator::new(crushed_iron, 1), ItemGenerator::new(crushed_iron, 30).with_probability(0.5f32)];
         reg.insert_multi_recipe(MultiRecipeBuilder::new("crush_iron")
-            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10)
+                .input(Item::one(raw_iron))
+                .output_2(what))
             .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_1)).output(Item::one(crushed_iron)))
             .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_2)).output(Item::one(crushed_iron)))
+        );
+
+
+        reg.insert_multi_recipe(MultiRecipeBuilder::new("crush_coal")
+            .with(RecipeBuilder::new("crush_coal", 16, 10).input(Item::one(raw_coal)).output(Item::one(crushed_coal)))
         );
         
         reg.insert_recipe(RecipeBuilder::new("crush_iron_more", 32, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)));
@@ -298,14 +347,14 @@ impl DefaultRegistry {
         
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_iron", 128, 30)
-                .add_possibility(raw_iron, 1..=4, 0..=127)
-                .add_possibility(raw_iron_1, 1..=4, 0..=127)
-                .add_possibility(raw_iron_2, 1..=4, 0..=127)
+                .add_possibility(raw_iron, 1..=4, 0..=127, None)
+                .add_possibility(raw_iron_1, 1..=4, 0..=127, None)
+                .add_possibility(raw_iron_2, 1..=4, 0..=127, None)
         );
 
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_coal", 128, 30)
-                .add_possibility(raw_coal, 1..=4, 0..=127)
+                .add_possibility(raw_coal, 1..=4, 0..=127, None)
         );
 
         reg
@@ -349,19 +398,35 @@ pub struct ItemGenerator {
     pub item_id: u8,
     pub min_max_stack_size: std::ops::RangeInclusive<u8>,
     pub min_max_dirtyness: std::ops::RangeInclusive<u8>,
+    pub probability: Option<f32>,
 }
 
 impl ItemGenerator {
     pub(crate) fn with_default(item: Item) -> Self {
-
         Self {
             item_id: item.id,
             min_max_stack_size: item.count..=item.count,
             min_max_dirtyness: 0..=0,
+            probability: None,
         }
     }
 
-    pub(crate) fn generate(&self, rng: &mut fastrand::Rng) -> Item {
+    pub(crate) fn new(id: u8, count: u8) -> Self {
+        Self::with_default(Item::new(id, count))
+    }
+
+    pub(crate) fn with_probability(mut self, probs: f32) -> Self {
+        self.probability = Some(probs);
+        self
+    }
+
+    pub(crate) fn generate(&self, rng: &mut fastrand::Rng) -> Option<Item> {
+        if let Some(p) = self.probability {
+            if p < rng.f32_inclusive() {
+                return None
+            }
+        }
+
         let mut item = Item::invalid();
         item.id = self.item_id;
         item.count = rng.u8(self.min_max_stack_size.clone());
@@ -371,17 +436,17 @@ impl ItemGenerator {
                 dirtyness: rng.u8(self.min_max_dirtyness.clone()),
             }
         });
-        item
+
+        Some(item)
     }
 }
-
 
 #[derive(Debug)]
 pub struct Recipe {
     pub id: &'static str,
     pub name: &'static str,
     pub input: Vec<Item>,
-    pub output: Vec<ItemGenerator>,
+    pub output: Vec<Vec<ItemGenerator>>,
     pub ticks: u16,
     pub load: LoadUnit,
 }
@@ -456,4 +521,3 @@ recipe::crush_recipe_builder()
     .time(1s)
     .output( { resource : next variant in "crush" tree } )
 */
-

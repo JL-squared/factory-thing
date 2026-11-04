@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::LazyLock;
 
 use arrayvec::ArrayVec;
+use petgraph::visit::EdgeRef;
 
 use crate::{Item, Miner};
 use crate::common::*;
@@ -24,6 +25,176 @@ pub trait Registry {
     fn name(&self, id: u8) -> &str {
         Self::registry_item(self, id).name
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecipeMachineType {
+    Crusher,
+    Miner,
+    Smelter,
+    AlloySmelter,
+    Unknown
+}
+
+enum NodeType1 {
+    Item,
+    Source,
+}
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NodeType {
+    MachineRecipe {
+        recipe_type: RecipeMachineType,
+        recipe_index: usize,
+    },
+    Item (u8)
+}
+
+#[derive(Debug)]
+enum EdgeType {
+    Input {
+        count: u8
+    },
+    Output {
+        stack_size: std::ops::RangeInclusive<u8>,
+        probability: f32,
+    }
+}
+
+impl EdgeType {
+    fn unwrap_input_item_count(&self) -> u8 {
+        match self {
+            EdgeType::Input { count } => *count,
+            EdgeType::Output { stack_size, probability } => panic!(),
+        }
+    }
+    fn unwrap_output_item_count(&self) -> u8 {
+        match self {
+            EdgeType::Input { count } => panic!(),
+
+            // TODO: handle probability shit
+            EdgeType::Output { stack_size, probability } => *stack_size.start(),
+        }
+    }
+    
+}
+
+#[derive(Debug)]
+pub struct RecipeTree {
+    total_items_used: HashMap<petgraph::graph::NodeIndex, usize>,
+}
+
+
+#[derive(Default)]
+pub struct RecipeIndexer {
+    item_indices_to_nodes: HashMap<u8, petgraph::graph::NodeIndex>,
+    graph: petgraph::Graph<NodeType, EdgeType>
+}
+
+impl RecipeIndexer {
+    fn register_item(&mut self, item: u8) {
+        let index = self.graph.add_node(NodeType::Item(item));
+        self.item_indices_to_nodes.insert(item, index);
+    }
+    
+    fn register_recipe_dependency(&mut self, multi_recipe: &MultiRecipe, recipe_type: RecipeMachineType) {
+        for (recipe_index, recipe) in multi_recipe.recipes.iter().enumerate() {
+            let unique_machine_node_for_recipe = self.graph.add_node(NodeType::MachineRecipe {
+                recipe_type,
+                recipe_index,
+            });
+            for single_input in recipe.input.iter() {
+                let item_node = self.item_indices_to_nodes[&single_input.id];
+                let weight = EdgeType::Input { count: single_input.count };
+                self.graph.add_edge(item_node, unique_machine_node_for_recipe, weight);
+            }
+
+            for per_hatch_output in recipe.output.iter() {
+                for single_output in per_hatch_output.iter() {
+                    let item_node = self.item_indices_to_nodes[&single_output.item_id];
+                    let weight: EdgeType = EdgeType::Output { stack_size: single_output.min_max_stack_size.clone(), probability: single_output.probability.unwrap_or(1f32) };
+                    self.graph.add_edge(unique_machine_node_for_recipe, item_node, weight);   
+                }
+            }
+        }
+    }
+
+    fn register_miner_recipe(&mut self, recipe: &MinerRecipe) {
+        let miner_node = self.graph.add_node(NodeType::MachineRecipe { recipe_type: RecipeMachineType::Miner, recipe_index: 0 });
+        for output in recipe.outputs.iter() {
+            let item_node = self.item_indices_to_nodes[&output.item_id];
+            let weight: EdgeType = EdgeType::Output { stack_size: output.min_max_stack_size.clone(), probability: output.probability.unwrap_or(1f32) };
+            self.graph.add_edge(miner_node, item_node, weight);
+        }
+    }
+    
+    // visit the tree SOURCE nodes in DFS/BFS order, doesn't matter
+    // we just need to go "backwards" in the tree
+    // 1. flip all edge directions
+    // 2. BFS and custom accumulate function for multiplying/dividing depending on edge type
+    pub fn compute_recipe_requirements(&self, id: u8) -> RecipeTree {
+        let count = 1usize;
+        let starting_node = self.graph.node_indices().find(|i| self.graph[*i] == NodeType::Item(id)).expect("did not find the item with the given ID");
+        let mut total_items_used = HashMap::<petgraph::graph::NodeIndex, usize>::default();
+
+        if petgraph::algo::is_cyclic_directed(&self.graph) {
+            panic!("indexed graph is cyclic. should not happen");
+        }
+
+        #[derive(Debug)]
+        enum NodeVisitType {
+            Machine {
+                index: petgraph::graph::NodeIndex,
+                process_count: usize,
+            },
+            Item { 
+                index: petgraph::graph::NodeIndex,
+                item_count: usize
+            }
+        }
+
+        let mut queue = VecDeque::<NodeVisitType>::new();
+        queue.push_back(NodeVisitType::Item {index: starting_node, item_count: count});
+
+        while let Some(node_type) = queue.pop_back() {
+            let current_node_index = match node_type {
+                NodeVisitType::Machine { index, process_count } => index,
+                NodeVisitType::Item { index, item_count } => index,
+            };
+            
+            let edges_towards_a = self.graph.edges_directed(current_node_index, petgraph::Incoming);
+            
+            match node_type {
+                NodeVisitType::Machine { index, process_count } => {
+                    // item -> `machine=node`
+                    for edge in edges_towards_a {
+                        let target_item_count = process_count * (edge.weight().unwrap_input_item_count() as usize);
+                        let input_item_node_index = edge.source();
+                        queue.push_back(NodeVisitType::Item { index: input_item_node_index, item_count: target_item_count });
+                    }
+                },
+                NodeVisitType::Item { index, item_count } => {
+                    *total_items_used.entry(index).or_default() += item_count;
+
+                    // machine -> `item=node`
+                    // FIXME: THIS IS WRONG
+                    // each separate edge is a "possible way" to create that item.
+                    // each of those branches can also have divergent branches
+                    // maybe doing this recursively could be better? as we could lazily avoid doing any computation unless the user wants to figure out how to craft dependencies 
+                    for edge in edges_towards_a {
+                        let target_process_count =  usize::div_ceil(item_count, (edge.weight().unwrap_output_item_count() as usize));
+                        let machine_node_index = edge.source();
+                        queue.push_back(NodeVisitType::Machine { index: machine_node_index, process_count: target_process_count });
+                    }
+                },
+            }
+        }
+
+        RecipeTree {
+            total_items_used
+        }
+    }    
 }
 
 struct ItemBuilder {
@@ -90,12 +261,14 @@ impl ItemBuilder {
 }
 
 pub struct MultiRecipeBuilder {
+    rtype: RecipeMachineType,
     recipes: Vec<Recipe>,
     id: &'static str,
 }
 impl MultiRecipeBuilder {
-    pub fn new(id: &'static str) -> Self {
+    pub fn new(id: &'static str, rtype: RecipeMachineType) -> Self {
         Self {
+            rtype,
             id,
             recipes: Vec::new()
         }
@@ -108,6 +281,7 @@ impl MultiRecipeBuilder {
 
     pub fn build(self) -> MultiRecipe {
         MultiRecipe {
+            rtype: self.rtype,
             id: self.id,
             recipes: ArrayVec::from_iter(self.recipes),
         }
@@ -207,6 +381,7 @@ pub struct DefaultRegistry {
     recipes: HashMap<String, Recipe>,
     multi_recipes: HashMap<String, MultiRecipe>,
     miner_recipes: HashMap<String, MinerRecipe>,
+    indexer: RecipeIndexer,
 }
 
 bitflags::bitflags! {
@@ -241,6 +416,7 @@ impl DefaultRegistry {
                     },
                 },
             ],
+            indexer: Default::default(),
             recipes: Default::default(),
             multi_recipes: Default::default(),
             miner_recipes: Default::default(),
@@ -250,21 +426,24 @@ impl DefaultRegistry {
     fn insert_item(&mut self, builder: ItemBuilder) -> u8 {
         let id = self.items.len() as u8;
         self.items.push(builder.item);
+        self.indexer.register_item(id);
         id
     }
 
     fn insert_miner_recipe(&mut self, builder: MinerRecipeBuilder) {
+        self.indexer.register_miner_recipe(&builder.0);
         self.miner_recipes.insert(builder.0.id.to_string(), builder.0);
     }
 
     fn insert_recipe(&mut self, builder: RecipeBuilder) {
-        self.insert_multi_recipe(MultiRecipeBuilder::new(builder.recipe.id).with(builder));
-        // let recipe = builder.build();
-        // self.recipes.insert(recipe.id.to_string(), recipe);
+        let multi_recipe = MultiRecipeBuilder::new(builder.recipe.id, RecipeMachineType::Unknown).with(builder).build();
+        self.indexer.register_recipe_dependency(&multi_recipe,  multi_recipe.rtype);
+        self.multi_recipes.insert(multi_recipe.id.to_string(), multi_recipe);
     }
 
     fn insert_multi_recipe(&mut self, builder: MultiRecipeBuilder) {
         let multi_recipe = builder.build();
+        self.indexer.register_recipe_dependency(&multi_recipe, multi_recipe.rtype);
         self.multi_recipes.insert(multi_recipe.id.to_string(), multi_recipe);
     }
 
@@ -283,6 +462,13 @@ impl DefaultRegistry {
             .with_model(ItemModel::DustMeshA)
             .with_material(ItemMaterial::CrushedOre)
             .with_flags(RegistryItemFlags::RAW)
+        );
+
+        let coal_dust = reg.insert_item(
+            ItemBuilder::new("coal dust", 255)
+            .with_model(ItemModel::DustMeshB)
+            .with_material(ItemMaterial::CrushedOre)
+            .with_flags(RegistryItemFlags::DUST)
         );
 
         let raw_iron = reg.insert_item(
@@ -327,24 +513,14 @@ impl DefaultRegistry {
             .with_flags(RegistryItemFlags::INGOT | RegistryItemFlags::MAGNETIC | RegistryItemFlags::CONDUCTIVE)
         );
 
-
-        let what = [ItemGenerator::new(crushed_iron, 1), ItemGenerator::new(crushed_iron, 30).with_probability(0.5f32)];
-        reg.insert_multi_recipe(MultiRecipeBuilder::new("crush_iron")
-            .with(RecipeBuilder::new("crush_iron", 16, 10)
-                .input(Item::one(raw_iron))
-                .output_2(what))
-            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_1)).output(Item::one(crushed_iron)))
-            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_2)).output(Item::one(crushed_iron)))
+        let steel_dust = reg.insert_item(
+            ItemBuilder::new("steel dust", 255)
+            .with_model(ItemModel::DustMeshB)
+            .with_material(ItemMaterial::CrushedOre)
+            .with_flags(RegistryItemFlags::DUST | RegistryItemFlags::MAGNETIC | RegistryItemFlags::CONDUCTIVE)
         );
 
 
-        reg.insert_multi_recipe(MultiRecipeBuilder::new("crush_coal")
-            .with(RecipeBuilder::new("crush_coal", 16, 10).input(Item::one(raw_coal)).output(Item::one(crushed_coal)))
-        );
-        
-        reg.insert_recipe(RecipeBuilder::new("crush_iron_more", 32, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)));
-        reg.insert_recipe(RecipeBuilder::new("smelt_iron", 4, 1).input(Item::one(iron_dust)).output(Item::one(iron_ingot)));
-        
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_iron", 128, 30)
                 .add_possibility(raw_iron, 1..=4, 0..=127, None)
@@ -355,6 +531,26 @@ impl DefaultRegistry {
         reg.insert_miner_recipe(
             MinerRecipeBuilder::new("mine_coal", 128, 30)
                 .add_possibility(raw_coal, 1..=4, 0..=127, None)
+        );
+
+        reg.insert_multi_recipe(MultiRecipeBuilder::new("crusher", RecipeMachineType::Crusher)
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_1)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(raw_iron_2)).output(Item::one(crushed_iron)))
+            .with(RecipeBuilder::new("crush_iron", 16, 10).input(Item::one(crushed_iron)).output(Item::one(iron_dust)))
+
+            .with(RecipeBuilder::new("crush_coal", 16, 10).input(Item::one(raw_coal)).output(Item::one(crushed_coal)))
+            .with(RecipeBuilder::new("crush_coal", 16, 10).input(Item::one(crushed_coal)).output(Item::one(coal_dust)))
+        );
+        
+        reg.insert_multi_recipe(MultiRecipeBuilder::new("smelter", RecipeMachineType::Smelter)
+            .with(RecipeBuilder::new("smelt", 4, 1).input(Item::one(iron_dust)).output(Item::one(iron_ingot)))
+        );
+        
+        reg.insert_multi_recipe(MultiRecipeBuilder::new("alloy_smelter", RecipeMachineType::AlloySmelter)
+            .with(RecipeBuilder::new("steel", 16, 10)
+                .input(Item::one(crushed_coal)).input(Item::one(iron_dust))
+                .output(Item::one(steel_dust)))
         );
 
         reg
@@ -454,12 +650,14 @@ pub struct Recipe {
 
 #[derive(Debug)]
 pub struct MultiRecipe {
+    pub rtype: RecipeMachineType,
     pub id: &'static str,
     pub recipes: ArrayVec<Recipe, 32>,
 }
 impl MultiRecipe {
     pub(crate) fn new(recipe: Recipe) -> Self {
         Self {
+            rtype: RecipeMachineType::Unknown,
             id: recipe.id,
             recipes: {
                 let mut vec = ArrayVec::<Recipe, 32>::new_const();
@@ -477,6 +675,26 @@ pub struct MinerRecipe {
     pub outputs: Vec<ItemGenerator>,
     pub ticks: u16,
     pub load: LoadUnit,
+}
+
+
+
+#[cfg(test)]
+mod default_registry_tests {
+    use super::*;
+
+    #[test]
+    fn test_indexer() {
+        let registry = DefaultRegistry::build();
+        dbg!(&registry.indexer.graph);
+        
+        for idx in 0..(registry.items.len()-1) {
+            let item_idx = (idx+1) as u8;
+            let recipe_tree = registry.indexer.compute_recipe_requirements(item_idx);
+            assert!(recipe_tree.total_items_used.len() >= 1);
+            dbg!(recipe_tree);
+        }    
+    }
 }
 
 

@@ -14,17 +14,17 @@ use crate::Simulation;
         fn default() -> Self {
             let mut hashmap: HashMap<String, MultiRecipe> = HashMap::<String, MultiRecipe>::new();
 
-            let crush_iron_recipe: Recipe = RecipeBuilder::new("crush_iron", 16, 10)
+            let crush_iron_recipe: Recipe = RecipeBuilder::new(Self::CRUSH_IRON, 16, 10)
                 .input(Item::one(Self::RAW_IRON_1))
                 .output(Item::one(Self::CRUSHED_IRON))
                 .build();  
 
-            let crush_iron_more_recipe: Recipe = RecipeBuilder::new("crush_iron_more", 16, 10)
+            let crush_iron_more_recipe: Recipe = RecipeBuilder::new(Self::CRUSH_IRON_MORE, 16, 10)
                 .input(Item::one(Self::CRUSHED_IRON))
                 .output(Item::one(Self::IRON_DUST))
                 .build();  
 
-            let smelt_iron_recipe: Recipe = RecipeBuilder::new("smelt_iron", 4, 0)
+            let smelt_iron_recipe: Recipe = RecipeBuilder::new(Self::SMELT_IRON, 4, 0)
                 .input(Item::one(Self::IRON_DUST))
                 .output(Item::one(Self::IRON_INGOT))
                 .build();  
@@ -40,6 +40,11 @@ use crate::Simulation;
     }
 
     impl TestRegistry {
+        pub const CRUSH_IRON: &'static str = "crush_iron";
+        pub const CRUSH_IRON_MORE: &'static str = "crush_iron_more";
+        pub const SMELT_IRON: &'static str = "smelt_iron";
+        
+
         pub const RAW_IRON_1: u8 = 1;
         pub const CRUSHED_IRON: u8 = 2;
         pub const IRON_DUST: u8 = 3;
@@ -629,6 +634,32 @@ mod hatch_tests {
 
         // we expect belt to be fully saturated by now
         assert!(sim.belts[key].is_saturated());
+    }
+}
+
+
+#[cfg(test)] 
+mod registry_tests {
+    use super::test_registry::*;
+    use crate::{common::BufferSize, *};
+    
+    #[test]
+    fn test_exists_registry_items() {
+        let sim = TestGame::testing();
+        assert!(sim.registry.registry_item(TestRegistry::RAW_IRON_1).stack_size > 0);
+        assert!(sim.registry.registry_item(TestRegistry::CRUSHED_IRON).stack_size > 0);
+        assert!(sim.registry.registry_item(TestRegistry::IRON_DUST).stack_size > 0);
+        assert!(sim.registry.registry_item(TestRegistry::IRON_INGOT).stack_size > 0);
+    }
+
+
+    // nothing burger ass test
+    #[test]
+    fn test_exists_registry_recipes() {
+        let sim = TestGame::testing();
+        assert!(sim.registry.registry_multi_recipe(TestRegistry::CRUSH_IRON).id == TestRegistry::CRUSH_IRON);
+        assert!(sim.registry.registry_multi_recipe(TestRegistry::CRUSH_IRON_MORE).id == TestRegistry::CRUSH_IRON_MORE);
+        assert!(sim.registry.registry_multi_recipe(TestRegistry::SMELT_IRON).id == TestRegistry::SMELT_IRON);        
     }
 }
 

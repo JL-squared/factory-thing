@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://dtpo7mur5khn2"]
 
-[ext_resource type="PackedScene" uid="uid://pcr0r0mqngyh" path="res://actors/pole.tscn" id="1_pkdie"]
-[ext_resource type="PackedScene" uid="uid://cdqcnjqngif53" path="res://actors/hatch.tscn" id="2_45cdh"]
-[ext_resource type="Material" uid="uid://dba8ytmipfsl2" path="res://vfx/smoke_particle_material.tres" id="3_vve36"]
-[ext_resource type="Material" uid="uid://ba6hdaqeva4dr" path="res://vfx/smoke_particle_process_material.tres" id="4_3l6i7"]
-[ext_resource type="PackedScene" uid="uid://bmw183igi0msw" path="res://prefabs/clicky_clicky_thing.tscn" id="5_gf6we"]
+[ext_resource type="PackedScene" uid="uid://pcr0r0mqngyh" path="res://actors/pole.tscn" id="1_ohphu"]
+[ext_resource type="PackedScene" uid="uid://cdqcnjqngif53" path="res://actors/hatch.tscn" id="2_2s67h"]
+[ext_resource type="Material" uid="uid://dba8ytmipfsl2" path="res://vfx/smoke_particle_material.tres" id="3_t6mok"]
+[ext_resource type="Material" uid="uid://ba6hdaqeva4dr" path="res://vfx/smoke_particle_process_material.tres" id="4_7m8et"]
+[ext_resource type="PackedScene" uid="uid://bmw183igi0msw" path="res://prefabs/clicky_clicky_thing.tscn" id="5_fiy8t"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_6a4ke"]
 size = Vector3(1, 1.0019531, 2.0927734)
@@ -12,7 +12,7 @@ size = Vector3(1, 1.0019531, 2.0927734)
 [sub_resource type="BoxMesh" id="BoxMesh_q015e"]
 
 [node name="Machine" type="MachineNode" unique_id=1421246302 groups=["actors"]]
-recipe_name_id = "smelt_iron"
+recipe_name_id = "smelter"
 input_hatch_count = 1
 output_hatch_count = 1
 
@@ -28,25 +28,25 @@ size = Vector3(1, 1, 1.9726563)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0009765625, 0.0024414063)
 shape = SubResource("BoxShape3D_6a4ke")
 
-[node name="Power Pole" parent="." unique_id=502923269 instance=ExtResource("1_pkdie")]
+[node name="Power Pole" parent="." unique_id=502923269 instance=ExtResource("1_ohphu")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.69810146, -0.80794793)
 
-[node name="Input Hatch" parent="." unique_id=276232919 instance=ExtResource("2_45cdh")]
+[node name="Input Hatch" parent="." unique_id=276232919 instance=ExtResource("2_2s67h")]
 input_hatch = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.1571972)
 
-[node name="Output Hatch" parent="." unique_id=1583920681 instance=ExtResource("2_45cdh")]
+[node name="Output Hatch" parent="." unique_id=1583920681 instance=ExtResource("2_2s67h")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.17957)
 type = 1
 
 [node name="Smoke Vfx" type="GPUParticles3D" parent="." unique_id=1143982262]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.038622, 0)
-material_override = ExtResource("3_vve36")
+material_override = ExtResource("3_t6mok")
 emitting = false
 amount = 32
 fixed_fps = 60
-process_material = ExtResource("4_3l6i7")
+process_material = ExtResource("4_7m8et")
 draw_pass_1 = SubResource("BoxMesh_q015e")
 
-[node name="Clicky Clicky Thing" parent="." unique_id=1774589842 instance=ExtResource("5_gf6we")]
+[node name="Clicky Clicky Thing" parent="." unique_id=1774589842 instance=ExtResource("5_fiy8t")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1830778, 0, 0)

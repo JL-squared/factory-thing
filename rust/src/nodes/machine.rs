@@ -102,11 +102,11 @@ impl MachineNode {
         let machine = &bound.game.machines[self.key];
 
         let registry = &bound.game.registry;
-        // let recipe = registry.registry_recipe(machine.recipe.as_ref().unwrap());
-        // let string = format!("machine. recipe: '{}'. status: {:?}", recipe.id, machine.status);
+        let multi_recipe = registry.registry_multi_recipe(machine.recipe.as_ref().unwrap());
+        let string = multi_recipe.recipes.iter().map(|x| x.name).fold(String::new(), |acc, x| acc + ", " + x);
         
-        let string = String::new();
-        
+        let string = format!("machine. recipe: '{}'. status: {:?}", string, machine.status);
+                
         GString::from_str(&string).unwrap()
     }
 

@@ -36,12 +36,6 @@ pub enum RecipeMachineType {
     Unknown
 }
 
-enum NodeType1 {
-    Item,
-    Source,
-}
-
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NodeType {
     MachineRecipe {
@@ -49,6 +43,37 @@ enum NodeType {
         recipe_index: usize,
     },
     Item (u8)
+}
+
+
+// TODO: instead of panicking in the branches, return an Option instead
+impl NodeType {
+    fn unwrap_item(&self) -> u8 {
+        match self {
+            NodeType::MachineRecipe { recipe_type, recipe_index } => panic!(),
+            NodeType::Item(x) => *x,
+        }
+    }
+
+    fn unwrap_recipe_type(&self) -> RecipeMachineType {
+        match self {
+            NodeType::MachineRecipe { recipe_type, recipe_index } => *recipe_type,
+            NodeType::Item(_) => panic!(),
+        }
+    }
+}
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RecipeTreeNodeType2 {
+    MachineRecipe {
+        recipe_type: RecipeMachineType,
+        recipe_index: usize,
+        process_count: usize
+    },
+    Item {
+        count: usize
+    }
 }
 
 #[derive(Debug)]
@@ -62,6 +87,7 @@ enum EdgeType {
     }
 }
 
+// TODO: instead of panicking in the branches, return an Option instead
 impl EdgeType {
     fn unwrap_input_item_count(&self) -> u8 {
         match self {
@@ -81,12 +107,138 @@ impl EdgeType {
 }
 
 #[derive(Debug)]
-pub struct RecipeTree {
-    total_items_used: HashMap<petgraph::graph::NodeIndex, usize>,
+enum NodeVisitType {
+    Machine {
+        index: petgraph::graph::NodeIndex,
+        process_count: usize,
+    },
+    Item { 
+        index: petgraph::graph::NodeIndex,
+        item_count: usize
+    }
 }
 
+pub struct NodeVisitItem { 
+    item_node_index: petgraph::graph::NodeIndex,
+    item_count: usize
+}
 
-#[derive(Default)]
+#[derive(Clone, Copy)]
+pub struct NodeVisitMachine {
+    recipe_node_index: petgraph::graph::NodeIndex,
+    process_count: usize,
+
+    // NOTE: these indices are indices for *different* graphs! we should probably strongly type these to avoid confusion...
+    // index_of_source_item_in_tree_graph: petgraph::graph::NodeIndex,
+
+    source_item_that_requested_the_visit_of_this_node: petgraph::graph::NodeIndex,
+    target_source_item_count: usize,
+}
+
+#[derive(Debug)]
+pub struct RecipeTree {
+    starting_index: (petgraph::graph::NodeIndex,usize),
+    raw_resources_used: HashMap<u8, usize>,
+    unexpanded_resources: HashMap<u8, usize>,
+    unused_byproducts: HashMap<u8, usize>,
+
+    // tree: petgraph::Graph<RecipeTreeNodeType2, ()>,
+    // item_indices_to_nodes_in_tree: HashMap<u8, petgraph::graph::NodeIndex>,
+}
+
+impl RecipeTree {
+    fn new(starting_index: (petgraph::graph::NodeIndex,usize)) -> Self {
+        Self {
+            starting_index,
+            raw_resources_used: Default::default(),
+            unexpanded_resources: Default::default(),
+            unused_byproducts: Default::default(),
+        }
+    }
+
+    // solves dependencies in the order they come in
+    // always picks the first recipe, but we should tweak this so that "cheaper" recipes are chosen first
+    pub fn solve_all(&mut self, indexer: &RecipeIndexer) {
+        let mut stack = Vec::<(petgraph::graph::NodeIndex,usize)>::new();
+        stack.push(self.starting_index);
+
+        while let Some(value) = stack.pop() {
+            let results = self.get_possible_crafting_recipes_for_item(indexer, value);
+
+            if !results.is_empty() {            
+                let recipe_inputs = self.select_recipe_for_item_node(indexer, results[0]);
+                stack.extend(recipe_inputs);
+            }
+        }
+    }
+
+    // returns the multiple crafting recipes that we can use to compute the dependency
+    pub fn get_possible_crafting_recipes_for_item(&mut self, indexer: &RecipeIndexer, (item, count): (petgraph::graph::NodeIndex,usize)) -> Vec<NodeVisitMachine> {     
+        let edges_towards_a = indexer.graph.edges_directed(item, petgraph::Incoming);
+        
+        let mut possible_crafting_recipes: Vec<NodeVisitMachine> = Vec::default();
+
+        // let recipe_tree_node_index = self.tree.add_node(RecipeTreeNodeType2::Item { count });
+
+        // machine -> `item=node`
+        // each separate edge is a "possible way" to create that item.
+        // each of those branches can also have divergent branches
+        // maybe doing this recursively could be better? as we could lazily avoid doing any computation unless the user wants to figure out how to craft dependencies 
+        for edge in edges_towards_a {
+            let unwrap_output_item_count = edge.weight().unwrap_output_item_count() as usize;
+            let target_process_count =  usize::div_ceil(count, unwrap_output_item_count);
+            let machine_node_index = edge.source();
+            possible_crafting_recipes.push(NodeVisitMachine {
+                recipe_node_index: machine_node_index,
+                process_count: target_process_count,
+                source_item_that_requested_the_visit_of_this_node: item,
+                target_source_item_count: target_process_count * unwrap_output_item_count,
+                // index_of_source_item_in_tree_graph: recipe_tree_node_index,
+            });
+        }
+
+
+        possible_crafting_recipes
+    }
+
+    // select a specific crafting recipe and returns a list of the input item dependencies
+    pub fn select_recipe_for_item_node(&mut self, indexer: &RecipeIndexer, visit: NodeVisitMachine) -> Vec<(petgraph::graph::NodeIndex, usize)> {
+        // a resource is a "raw resource" if it is generated from a miner only
+        let item_index = indexer.graph[visit.source_item_that_requested_the_visit_of_this_node].unwrap_item();
+        if indexer.graph[visit.recipe_node_index].unwrap_recipe_type() == RecipeMachineType::Miner {
+            *self.raw_resources_used.entry(item_index).or_default() += 1;
+        }
+
+        // we have selected the recipe, so this resource is no longer unexpanded
+        self.unexpanded_resources.remove(&item_index);
+
+        let current_node_index = visit.recipe_node_index;            
+        let edges_towards_a = indexer.graph.edges_directed(current_node_index, petgraph::Incoming);
+        let edges_from_a = indexer.graph.edges_directed(current_node_index, petgraph::Outgoing);        
+        let mut pre_reqs = Vec::<(petgraph::graph::NodeIndex, usize)>::default();
+
+        // item -> `machine=node`
+        for edge in edges_towards_a {
+            let target_item_count = visit.process_count * (edge.weight().unwrap_input_item_count() as usize);
+            let input_item_node_index = edge.source();
+            pre_reqs.push((input_item_node_index, target_item_count));
+            
+            self.unexpanded_resources.insert(indexer.graph[input_item_node_index].unwrap_item(), target_item_count);
+        }
+
+        // add unused byproducts by checking edges that go *from* a
+        // `machine=node` -> byproduct
+        for edge in edges_from_a {
+            let target_item_count = visit.process_count * (edge.weight().unwrap_output_item_count() as usize);
+            let output_item_index = indexer.graph[edge.source()].unwrap_item();
+            *self.unused_byproducts.entry(output_item_index).or_default() += target_item_count;
+        }
+
+        pre_reqs
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct RecipeIndexer {
     item_indices_to_nodes: HashMap<u8, petgraph::graph::NodeIndex>,
     graph: petgraph::Graph<NodeType, EdgeType>
@@ -129,72 +281,15 @@ impl RecipeIndexer {
         }
     }
     
-    // visit the tree SOURCE nodes in DFS/BFS order, doesn't matter
-    // we just need to go "backwards" in the tree
-    // 1. flip all edge directions
-    // 2. BFS and custom accumulate function for multiplying/dividing depending on edge type
-    pub fn compute_recipe_requirements(&self, id: u8) -> RecipeTree {
-        let count = 1usize;
-        let starting_node = self.graph.node_indices().find(|i| self.graph[*i] == NodeType::Item(id)).expect("did not find the item with the given ID");
-        let mut total_items_used = HashMap::<petgraph::graph::NodeIndex, usize>::default();
+    pub fn compute_recipe_requirements(&self, id: u8, count: usize) -> RecipeTree {
+        let starting_node = self.item_indices_to_nodes[&id];
 
         if petgraph::algo::is_cyclic_directed(&self.graph) {
             panic!("indexed graph is cyclic. should not happen");
         }
-
-        #[derive(Debug)]
-        enum NodeVisitType {
-            Machine {
-                index: petgraph::graph::NodeIndex,
-                process_count: usize,
-            },
-            Item { 
-                index: petgraph::graph::NodeIndex,
-                item_count: usize
-            }
-        }
-
-        let mut queue = VecDeque::<NodeVisitType>::new();
-        queue.push_back(NodeVisitType::Item {index: starting_node, item_count: count});
-
-        while let Some(node_type) = queue.pop_back() {
-            let current_node_index = match node_type {
-                NodeVisitType::Machine { index, process_count } => index,
-                NodeVisitType::Item { index, item_count } => index,
-            };
-            
-            let edges_towards_a = self.graph.edges_directed(current_node_index, petgraph::Incoming);
-            
-            match node_type {
-                NodeVisitType::Machine { index, process_count } => {
-                    // item -> `machine=node`
-                    for edge in edges_towards_a {
-                        let target_item_count = process_count * (edge.weight().unwrap_input_item_count() as usize);
-                        let input_item_node_index = edge.source();
-                        queue.push_back(NodeVisitType::Item { index: input_item_node_index, item_count: target_item_count });
-                    }
-                },
-                NodeVisitType::Item { index, item_count } => {
-                    *total_items_used.entry(index).or_default() += item_count;
-
-                    // machine -> `item=node`
-                    // FIXME: THIS IS WRONG
-                    // each separate edge is a "possible way" to create that item.
-                    // each of those branches can also have divergent branches
-                    // maybe doing this recursively could be better? as we could lazily avoid doing any computation unless the user wants to figure out how to craft dependencies 
-                    for edge in edges_towards_a {
-                        let target_process_count =  usize::div_ceil(item_count, (edge.weight().unwrap_output_item_count() as usize));
-                        let machine_node_index = edge.source();
-                        queue.push_back(NodeVisitType::Machine { index: machine_node_index, process_count: target_process_count });
-                    }
-                },
-            }
-        }
-
-        RecipeTree {
-            total_items_used
-        }
-    }    
+        
+        RecipeTree::new((starting_node, count))
+    }
 }
 
 struct ItemBuilder {
@@ -690,9 +785,17 @@ mod default_registry_tests {
         
         for idx in 0..(registry.items.len()-1) {
             let item_idx = (idx+1) as u8;
-            let recipe_tree = registry.indexer.compute_recipe_requirements(item_idx);
-            assert!(recipe_tree.total_items_used.len() >= 1);
-            dbg!(recipe_tree);
+            let mut recipe_tree = registry.indexer.compute_recipe_requirements(item_idx, 1);
+            recipe_tree.solve_all(&registry.indexer);
+            dbg!(registry.registry_item(item_idx).name);
+            
+            dbg!(recipe_tree.raw_resources_used);
+            dbg!(recipe_tree.unexpanded_resources);
+            
+            
+            // let raw_resources_uses = recipe_tree.list_total_prerequisite_resources();
+            // assert!(recipe_tree.list_total_prerequisite_resources().len() >= 1);
+            // dbg!(recipe_tree);
         }    
     }
 }

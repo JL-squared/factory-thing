@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::LazyLock;
 
 use arrayvec::ArrayVec;
@@ -42,7 +42,10 @@ enum NodeType {
         recipe_type: RecipeMachineType,
         recipe_index: usize,
     },
-    Item (u8)
+    Item {
+        id: u8,
+        name: &'static str,
+    }
 }
 
 
@@ -51,14 +54,21 @@ impl NodeType {
     fn unwrap_item(&self) -> u8 {
         match self {
             NodeType::MachineRecipe { recipe_type, recipe_index } => panic!(),
-            NodeType::Item(x) => *x,
+            NodeType::Item { id, ..} => *id,
         }
     }
 
     fn unwrap_recipe_type(&self) -> RecipeMachineType {
         match self {
             NodeType::MachineRecipe { recipe_type, recipe_index } => *recipe_type,
-            NodeType::Item(_) => panic!(),
+            NodeType::Item { .. } => panic!(),
+        }
+    }
+    
+    fn unwrap_item_name(&self) -> &'static str {
+        match self {
+            NodeType::MachineRecipe { recipe_type, recipe_index } => panic!(),
+            NodeType::Item { name, .. } => name,
         }
     }
 }
@@ -67,13 +77,18 @@ impl NodeType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RecipeTreeNodeType2 {
     MachineRecipe {
-        recipe_type: RecipeMachineType,
-        recipe_index: usize,
-        process_count: usize
+        rtype: RecipeMachineType,
     },
     Item {
+        name: &'static str,
         count: usize
     }
+}
+
+#[derive(Debug)]
+enum RecipeTreeEdgeType {
+    Input(usize),
+    Output(usize)
 }
 
 #[derive(Debug)]
@@ -82,8 +97,10 @@ enum EdgeType {
         count: u8
     },
     Output {
-        stack_size: std::ops::RangeInclusive<u8>,
-        probability: f32,
+        // this output is `unique` if the recipe can produce only one of these unique outputs
+        // ex: miners can produce *one* of the rawiron1, rawiron2, rawiron3 at any given time
+        unique: bool,
+        stack_size: u8,
     }
 }
 
@@ -92,7 +109,7 @@ impl EdgeType {
     fn unwrap_input_item_count(&self) -> u8 {
         match self {
             EdgeType::Input { count } => *count,
-            EdgeType::Output { stack_size, probability } => panic!(),
+            EdgeType::Output { .. } => panic!(),
         }
     }
     fn unwrap_output_item_count(&self) -> u8 {
@@ -100,7 +117,15 @@ impl EdgeType {
             EdgeType::Input { count } => panic!(),
 
             // TODO: handle probability shit
-            EdgeType::Output { stack_size, probability } => *stack_size.start(),
+            EdgeType::Output { stack_size, .. } => *stack_size,
+        }
+    }
+    fn unwrap_output_unique(&self) -> bool {
+        match self {
+            EdgeType::Input { count } => panic!(),
+
+            // TODO: handle probability shit
+            EdgeType::Output { unique, .. } => *unique,
         }
     }
     
@@ -127,32 +152,67 @@ pub struct NodeVisitItem {
 pub struct NodeVisitMachine {
     recipe_node_index: petgraph::graph::NodeIndex,
     process_count: usize,
-
-    // NOTE: these indices are indices for *different* graphs! we should probably strongly type these to avoid confusion...
-    // index_of_source_item_in_tree_graph: petgraph::graph::NodeIndex,
-
     source_item_that_requested_the_visit_of_this_node: petgraph::graph::NodeIndex,
     target_source_item_count: usize,
+    recipe_type: RecipeMachineType,
 }
+
+
+#[derive(Default, Debug)]
+struct PersistentTotalRecipeTree {
+    graph: petgraph::Graph<RecipeTreeNodeType2, RecipeTreeEdgeType>,
+    index_mapping_function: HashMap<petgraph::graph::NodeIndex, petgraph::graph::NodeIndex>,
+    inverse_index_mapping_function: HashMap<petgraph::graph::NodeIndex, petgraph::graph::NodeIndex>,
+
+}
+
+impl PersistentTotalRecipeTree {
+    fn add_recipe_node(&mut self, index: petgraph::prelude::NodeIndex, recipe_type: RecipeMachineType)  {
+        let index2 = self.index_mapping_function.entry(index).or_insert_with(|| self.graph.add_node(RecipeTreeNodeType2::MachineRecipe { rtype: recipe_type }));
+        self.inverse_index_mapping_function.insert(*index2, index);
+    }
+    
+    fn add_item_node(&mut self, index: petgraph::prelude::NodeIndex, name: &'static str, add: usize)  {
+        let idx = self.index_mapping_function.entry(index).or_insert_with(|| self.graph.add_node(RecipeTreeNodeType2::Item { count: 0, name }));
+        self.inverse_index_mapping_function.insert(*idx, index);
+    
+        if let RecipeTreeNodeType2::Item { count, .. } = &mut self.graph[*idx] {
+            *count += add;
+        };
+    }
+    
+    fn add_recipe_input(&mut self, recipe_node_index: petgraph::prelude::NodeIndex, input_item_node_index: petgraph::prelude::NodeIndex, input_count: usize) {
+        let recipe_node_index_tree = self.index_mapping_function[&recipe_node_index];
+        let item_node_index_tree = self.index_mapping_function[&input_item_node_index];
+        self.graph.add_edge(item_node_index_tree, recipe_node_index_tree, RecipeTreeEdgeType::Input(input_count as usize));
+
+    }
+    
+    fn add_recipe_output(&mut self, recipe_node_index: petgraph::prelude::NodeIndex, output_item_node_index: petgraph::prelude::NodeIndex, output_count: usize) {
+        let recipe_node_index_tree = self.index_mapping_function[&recipe_node_index];
+        let item_node_index_tree = self.index_mapping_function[&output_item_node_index];
+        self.graph.add_edge(recipe_node_index_tree, item_node_index_tree, RecipeTreeEdgeType::Input(output_count as usize));
+    }
+}
+
 
 #[derive(Debug)]
 pub struct RecipeTree {
     starting_index: (petgraph::graph::NodeIndex,usize),
-    raw_resources_used: HashMap<u8, usize>,
-    unexpanded_resources: HashMap<u8, usize>,
-    unused_byproducts: HashMap<u8, usize>,
-
-    // tree: petgraph::Graph<RecipeTreeNodeType2, ()>,
-    // item_indices_to_nodes_in_tree: HashMap<u8, petgraph::graph::NodeIndex>,
+    // raw_resources_used: HashMap<u8, usize>,
+    // unexpanded_resources: HashMap<u8, usize>,
+    // unused_byproducts: HashMap<u8, usize>,
+    inner: PersistentTotalRecipeTree,
 }
 
 impl RecipeTree {
     fn new(starting_index: (petgraph::graph::NodeIndex,usize)) -> Self {
         Self {
             starting_index,
-            raw_resources_used: Default::default(),
-            unexpanded_resources: Default::default(),
-            unused_byproducts: Default::default(),
+            // raw_resources_used: Default::default(),
+            // unexpanded_resources: Default::default(),
+            // unused_byproducts: Default::default(),
+            inner: Default::default()
         }
     }
 
@@ -178,7 +238,7 @@ impl RecipeTree {
         
         let mut possible_crafting_recipes: Vec<NodeVisitMachine> = Vec::default();
 
-        // let recipe_tree_node_index = self.tree.add_node(RecipeTreeNodeType2::Item { count });
+        self.inner.add_item_node(item, indexer.graph[item].unwrap_item_name(), count);
 
         // machine -> `item=node`
         // each separate edge is a "possible way" to create that item.
@@ -193,7 +253,7 @@ impl RecipeTree {
                 process_count: target_process_count,
                 source_item_that_requested_the_visit_of_this_node: item,
                 target_source_item_count: target_process_count * unwrap_output_item_count,
-                // index_of_source_item_in_tree_graph: recipe_tree_node_index,
+                recipe_type: indexer.graph[machine_node_index].unwrap_recipe_type()
             });
         }
 
@@ -203,14 +263,7 @@ impl RecipeTree {
 
     // select a specific crafting recipe and returns a list of the input item dependencies
     pub fn select_recipe_for_item_node(&mut self, indexer: &RecipeIndexer, visit: NodeVisitMachine) -> Vec<(petgraph::graph::NodeIndex, usize)> {
-        // a resource is a "raw resource" if it is generated from a miner only
-        let item_index = indexer.graph[visit.source_item_that_requested_the_visit_of_this_node].unwrap_item();
-        if indexer.graph[visit.recipe_node_index].unwrap_recipe_type() == RecipeMachineType::Miner {
-            *self.raw_resources_used.entry(item_index).or_default() += 1;
-        }
-
-        // we have selected the recipe, so this resource is no longer unexpanded
-        self.unexpanded_resources.remove(&item_index);
+        self.inner.add_recipe_node(visit.recipe_node_index, visit.recipe_type);
 
         let current_node_index = visit.recipe_node_index;            
         let edges_towards_a = indexer.graph.edges_directed(current_node_index, petgraph::Incoming);
@@ -222,16 +275,21 @@ impl RecipeTree {
             let target_item_count = visit.process_count * (edge.weight().unwrap_input_item_count() as usize);
             let input_item_node_index = edge.source();
             pre_reqs.push((input_item_node_index, target_item_count));
-            
-            self.unexpanded_resources.insert(indexer.graph[input_item_node_index].unwrap_item(), target_item_count);
+            self.inner.add_item_node(input_item_node_index, indexer.graph[input_item_node_index].unwrap_item_name(), target_item_count);
+            self.inner.add_recipe_input(visit.recipe_node_index, input_item_node_index, target_item_count);
         }
-
-        // add unused byproducts by checking edges that go *from* a
+        
         // `machine=node` -> byproduct
+        // ONLY for non-unique recipes (as those are considered generating "byproducts")
+        // TODO: figure out a more robust way of handling that
         for edge in edges_from_a {
             let target_item_count = visit.process_count * (edge.weight().unwrap_output_item_count() as usize);
-            let output_item_index = indexer.graph[edge.source()].unwrap_item();
-            *self.unused_byproducts.entry(output_item_index).or_default() += target_item_count;
+            let target = edge.target();
+
+            if !edge.weight().unwrap_output_unique() {
+                self.inner.add_item_node(target, indexer.graph[target].unwrap_item_name(), target_item_count);
+                self.inner.add_recipe_output(visit.recipe_node_index, target, target_item_count);
+            }
         }
 
         pre_reqs
@@ -245,8 +303,8 @@ pub struct RecipeIndexer {
 }
 
 impl RecipeIndexer {
-    fn register_item(&mut self, item: u8) {
-        let index = self.graph.add_node(NodeType::Item(item));
+    fn register_item(&mut self, item: u8, name: &'static str) {
+        let index = self.graph.add_node(NodeType::Item { id: item, name });
         self.item_indices_to_nodes.insert(item, index);
     }
     
@@ -265,7 +323,7 @@ impl RecipeIndexer {
             for per_hatch_output in recipe.output.iter() {
                 for single_output in per_hatch_output.iter() {
                     let item_node = self.item_indices_to_nodes[&single_output.item_id];
-                    let weight: EdgeType = EdgeType::Output { stack_size: single_output.min_max_stack_size.clone(), probability: single_output.probability.unwrap_or(1f32) };
+                    let weight: EdgeType = EdgeType::Output { stack_size: *single_output.min_max_stack_size.start(), unique: false };
                     self.graph.add_edge(unique_machine_node_for_recipe, item_node, weight);   
                 }
             }
@@ -276,7 +334,7 @@ impl RecipeIndexer {
         let miner_node = self.graph.add_node(NodeType::MachineRecipe { recipe_type: RecipeMachineType::Miner, recipe_index: 0 });
         for output in recipe.outputs.iter() {
             let item_node = self.item_indices_to_nodes[&output.item_id];
-            let weight: EdgeType = EdgeType::Output { stack_size: output.min_max_stack_size.clone(), probability: output.probability.unwrap_or(1f32) };
+            let weight: EdgeType = EdgeType::Output { stack_size: *output.min_max_stack_size.start(), unique: true };
             self.graph.add_edge(miner_node, item_node, weight);
         }
     }
@@ -520,8 +578,8 @@ impl DefaultRegistry {
 
     fn insert_item(&mut self, builder: ItemBuilder) -> u8 {
         let id = self.items.len() as u8;
+        self.indexer.register_item(id, builder.item.name);
         self.items.push(builder.item);
-        self.indexer.register_item(id);
         id
     }
 
@@ -789,9 +847,19 @@ mod default_registry_tests {
             recipe_tree.solve_all(&registry.indexer);
             dbg!(registry.registry_item(item_idx).name);
             
-            dbg!(recipe_tree.raw_resources_used);
-            dbg!(recipe_tree.unexpanded_resources);
-            
+            // dbg!(recipe_tree.raw_resources_used);
+            // dbg!(recipe_tree.unexpanded_resources);
+            dbg!(&recipe_tree.inner);
+
+            /*
+            let result = petgraph::algo::toposort(&recipe_tree.inner.graph, None).unwrap();
+            let mapped = result.into_iter().map(|x| {
+                let y = recipe_tree.inner.inverse_index_mapping_function[&x];
+                let item_id = registry.indexer.graph[y];
+                (recipe_tree.inner.graph[x], item_id)
+            }).collect::<Vec<_>>();
+            dbg!(mapped);
+            */
             
             // let raw_resources_uses = recipe_tree.list_total_prerequisite_resources();
             // assert!(recipe_tree.list_total_prerequisite_resources().len() >= 1);
